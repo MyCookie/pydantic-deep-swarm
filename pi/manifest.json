@@ -1,0 +1,114 @@
+{
+  "schema_version": 2,
+  "package": "@agent-team/pi-assets",
+  "version": "0.1.0",
+  "minimum_pi_version": "0.0.0",
+  "managed_scope": "project-local",
+  "provenance": {
+    "generator": "agent-team",
+    "source": "first-party repository source"
+  },
+  "external_requirements": [],
+  "assets": [
+    {
+      "type": "metadata",
+      "path": "package.json",
+      "sha256": "3aad69dcee4d8becb25fa04cff19daa249f16cac7427d562f8b9ee7bf316befd",
+      "size_bytes": 508,
+      "generator": "agent-team",
+      "provenance": "first-party repository source",
+      "minimum_pi_version": "0.0.0",
+      "managed_scope": "project-local",
+      "external_requirements": []
+    },
+    {
+      "type": "license",
+      "path": "LICENSE",
+      "sha256": "cb94bcc30cd38f9c149a7b1b1a70ddadbdc326083a035e3e412026fcb469cb7e",
+      "size_bytes": 1080,
+      "generator": "agent-team",
+      "provenance": "first-party repository source",
+      "minimum_pi_version": "0.0.0",
+      "managed_scope": "project-local",
+      "external_requirements": []
+    },
+    {
+      "type": "test",
+      "path": "manifest_validator.py",
+      "sha256": "ef7f5759428ea699e152e3d81f192b86320a4d6e931fa20085df4f29b44af2cf",
+      "size_bytes": 8363,
+      "generator": "agent-team",
+      "provenance": "first-party repository source",
+      "minimum_pi_version": "0.0.0",
+      "managed_scope": "project-local",
+      "external_requirements": []
+    },
+    {
+      "type": "extension",
+      "path": "extensions/agent-team-status.ts",
+      "sha256": "720d9bfd7d1c5772d2161d7dfd6810269a7137c46164e7a79686ad481d4494bd",
+      "size_bytes": 690,
+      "generator": "agent-team",
+      "provenance": "first-party repository source",
+      "minimum_pi_version": "0.0.0",
+      "managed_scope": "project-local",
+      "external_requirements": []
+    },
+    {
+      "type": "skill",
+      "path": "skills/agent-team-delegation/SKILL.md",
+      "sha256": "dfd02f41af3a6a1c390e523c84020b1b93f225c04be1f6d9231730b08702998b",
+      "size_bytes": 903,
+      "generator": "agent-team",
+      "provenance": "first-party repository source",
+      "minimum_pi_version": "0.0.0",
+      "managed_scope": "project-local",
+      "external_requirements": []
+    },
+    {
+      "type": "prompt",
+      "path": "prompts/principal-handoff.md",
+      "sha256": "c3d7c40964d21b975ce557ab43d8d0b42ad5633b69b77ef432f5f01fc02a0341",
+      "size_bytes": 693,
+      "generator": "agent-team",
+      "provenance": "first-party repository source",
+      "minimum_pi_version": "0.0.0",
+      "managed_scope": "project-local",
+      "external_requirements": []
+    },
+    {
+      "type": "theme",
+      "path": "themes/agent-team.json",
+      "sha256": "098f1a86117139f9bdaa687faf424565cd17c9ed65c3cec2e9c4a32154d58835",
+      "size_bytes": 270,
+      "generator": "agent-team",
+      "provenance": "first-party repository source",
+      "minimum_pi_version": "0.0.0",
+      "managed_scope": "project-local",
+      "external_requirements": []
+    },
+    {
+      "type": "agent",
+      "path": "agents/reviewer.md",
+      "sha256": "6f59a91884613edf823857b129d4196d416b2ac0fd4af696908c03918d5e4cf2",
+      "size_bytes": 471,
+      "generator": "agent-team",
+      "provenance": "first-party repository source",
+      "minimum_pi_version": "0.0.0",
+      "managed_scope": "project-local",
+      "external_requirements": [],
+      "optional": true
+    },
+    {
+      "type": "test",
+      "path": "tests/test_manifest.py",
+      "sha256": "cf707b6ce8f5c87dfb4fb19d9128d76ebb53b6a7910937865662a592517c262e",
+      "size_bytes": 1318,
+      "generator": "agent-team",
+      "provenance": "first-party repository source",
+      "minimum_pi_version": "0.0.0",
+      "managed_scope": "project-local",
+      "external_requirements": []
+    }
+  ]
+}

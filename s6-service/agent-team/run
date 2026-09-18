@@ -1,0 +1,43 @@
+#!/usr/bin/env -S with-contenv sh
+# shellcheck shell=sh
+set -eu
+
+# Deployment-specific values are injected by s6/container environment.
+project="${AGENT_TEAM_PROJECT_ROOT:?set AGENT_TEAM_PROJECT_ROOT}"
+venv="${AGENT_TEAM_VENV:?set AGENT_TEAM_VENV}"
+python="${AGENT_TEAM_PYTHON:-$venv/bin/python}"
+service_user="${AGENT_TEAM_SERVICE_USER:-agent-team}"
+setuidgid="${AGENT_TEAM_S6_SETUIDGID:-s6-setuidgid}"
+host="${AGENT_TEAM_HOST:-localhost}"
+port="${AGENT_TEAM_PORT:-8080}"
+runtime_home="${AGENT_TEAM_HOME:-${HOME:-}}"
+
+[ -n "$runtime_home" ] || {
+  echo "agent-team: set AGENT_TEAM_HOME or HOME" >&2
+  exit 78
+}
+[ -x "$python" ] || {
+  echo "agent-team: missing Python runtime: $python" >&2
+  exit 78
+}
+[ -d "$project/src/agent_team" ] || {
+  echo "agent-team: missing source tree: $project/src/agent_team" >&2
+  exit 78
+}
+
+export HOME="$runtime_home"
+export USER="$service_user"
+export LOGNAME="$service_user"
+export PYTHONPATH="${AGENT_TEAM_PYTHONPATH:-$project/src}"
+export LLM_BASE_URL="${LLM_BASE_URL:-http://model-service:8000/v1}"
+export LLM_MODEL="${LLM_MODEL:-local-model}"
+export PRINCIPAL_MODEL="${PRINCIPAL_MODEL:-$LLM_MODEL}"
+export MANAGER_MODEL="${MANAGER_MODEL:-$LLM_MODEL}"
+export WORKER_MODEL="${WORKER_MODEL:-$LLM_MODEL}"
+export CURATOR_MODEL="${CURATOR_MODEL:-$LLM_MODEL}"
+
+cd "$project"
+exec "$setuidgid" "$service_user" \
+  "$python" -m uvicorn agent_team.app:app \
+  --host "$host" \
+  --port "$port"

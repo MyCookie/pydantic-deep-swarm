@@ -1,0 +1,12 @@
+{
+  "name": "agent-team",
+  "description": "High-contrast status theme for the Agent Team project",
+  "colors": {
+    "text": "#d7e3f4",
+    "muted": "#8ca0b8",
+    "accent": "#65d9a6",
+    "warning": "#f2c86b",
+    "error": "#ef8585",
+    "background": "#10151c"
+  }
+}

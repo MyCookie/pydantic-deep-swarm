@@ -1,0 +1,66 @@
+#!/usr/bin/env -S with-contenv sh
+# s6-overlay oneshot init service for agent-team
+# Deployment values are injected through AGENT_TEAM_* environment variables.
+
+set -eu
+
+project="${AGENT_TEAM_PROJECT_ROOT:?set AGENT_TEAM_PROJECT_ROOT}"
+if [ -n "${AGENT_TEAM_PYTHON:-}" ]; then
+  python="$AGENT_TEAM_PYTHON"
+else
+  venv="${AGENT_TEAM_VENV:?set AGENT_TEAM_VENV or AGENT_TEAM_PYTHON}"
+  python="$venv/bin/python"
+fi
+runtime_home="${AGENT_TEAM_HOME:-${HOME:-}}"
+state_dir="${AGENT_TEAM_STATE_DIR:-$runtime_home/.agent-team}"
+
+[ -n "$runtime_home" ] || {
+  echo "agent-team-init: set AGENT_TEAM_HOME or HOME" >&2
+  exit 78
+}
+case "$project" in
+  /*) ;;
+  *)
+    echo "agent-team-init: project root must be absolute: $project" >&2
+    exit 78
+    ;;
+esac
+case "$state_dir" in
+  /*) ;;
+  *)
+    echo "agent-team-init: state directory must be absolute: $state_dir" >&2
+    exit 78
+    ;;
+esac
+case "$state_dir" in
+  "$project"|"$project"/*)
+    echo "agent-team-init: state directory must be outside project: $state_dir" >&2
+    exit 78
+    ;;
+esac
+[ -x "$python" ] || {
+  echo "agent-team-init: missing Python runtime: $python" >&2
+  exit 78
+}
+[ -d "$project/src/agent_team" ] || {
+  echo "agent-team-init: missing source tree: $project/src/agent_team" >&2
+  exit 78
+}
+
+mkdir -p \
+  "$state_dir/config" \
+  "$state_dir/state" \
+  "$state_dir/sessions" \
+  "$state_dir/checkpoints" \
+  "$state_dir/memory" \
+  "$state_dir/knowledge" \
+  "$state_dir/skills" \
+  "$state_dir/projects" \
+  "$state_dir/artifacts" \
+  "$state_dir/logs"
+
+# KnowledgeStore owns schema creation and migrations; keep initialization in one code path.
+AGENT_TEAM_STATE_DIR="$state_dir" PYTHONPATH="$project/src${PYTHONPATH:+:$PYTHONPATH}" \
+  "$python" -c 'import os; from pathlib import Path; from agent_team.memory.knowledge import KnowledgeStore; KnowledgeStore(Path(os.environ["AGENT_TEAM_STATE_DIR"]) / "knowledge" / "knowledge.db")'
+
+echo "Agent team initialization complete"

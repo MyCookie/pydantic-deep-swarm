@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-team.invalid/provenance/schema.json",
+  "title": "Agent Team Git Provenance Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "record_id",
+    "created_at",
+    "repository",
+    "base_revision",
+    "candidate_revision",
+    "deployed_revision",
+    "generated_by",
+    "assets",
+    "validation_results",
+    "commit_policy",
+    "push_policy"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "record_id": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "minLength": 1},
+    "project_id": {"type": ["string", "null"]},
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["root", "branch", "remote", "head_revision", "worktree_revision", "dirty"],
+      "properties": {
+        "root": {"type": "string", "minLength": 1},
+        "branch": {"type": ["string", "null"]},
+        "remote": {"type": ["string", "null"]},
+        "head_revision": {"type": ["string", "null"]},
+        "worktree_revision": {"type": "string", "pattern": "^worktree:[0-9a-f]{64}$"},
+        "dirty": {"type": "boolean"}
+      }
+    },
+    "base_revision": {"type": ["string", "null"], "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64}|worktree:[0-9a-f]{64})$"},
+    "candidate_revision": {"type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64}|worktree:[0-9a-f]{64})$"},
+    "deployed_revision": {"type": ["string", "null"], "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"},
+    "generated_by": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent"],
+      "properties": {
+        "agent": {"type": "string", "minLength": 1},
+        "model": {"type": ["string", "null"]},
+        "session_id": {"type": ["string", "null"]},
+        "task_id": {"type": ["string", "null"]},
+        "tool": {"type": ["string", "null"]}
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256", "generator", "source"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1},
+          "sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+          "generator": {"type": ["string", "null"]},
+          "source": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "validation_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "command", "details", "started_at", "finished_at"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "status": {"enum": ["passed", "failed", "skipped"]},
+          "command": {"type": "array", "items": {"type": "string"}},
+          "details": {"type": ["string", "null"]},
+          "started_at": {"type": ["string", "null"]},
+          "finished_at": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "commit_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "auto_commit"],
+      "properties": {
+        "mode": {"const": "operator-authorized-only"},
+        "auto_commit": {"const": false}
+      }
+    },
+    "push_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "remote_push_enabled", "auto_push"],
+      "properties": {
+        "mode": {"const": "disabled-unless-explicit-authorization"},
+        "remote_push_enabled": {"const": false},
+        "auto_push": {"const": false}
+      }
+    }
+  }
+}

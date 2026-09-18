@@ -1,0 +1,9 @@
+name: principal-agent-team
+version: "1.0"
+manifest_version: 2
+description: Register a session-aware typed delegation tool for the normal Hermes Principal
+config_schema:
+  agent_team_url:
+    type: str
+    default: ""
+    description: Optional Agent Team service URL; otherwise use AGENT_TEAM_URL or the documented local default

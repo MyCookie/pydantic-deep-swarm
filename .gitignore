@@ -1,0 +1,143 @@
+# Agent Team repository ignore policy
+# Keep source, tests, deployment templates, lockfiles, and first-party Pi assets
+# tracked. Keep runtime state, credentials, caches, and machine-local overlays out.
+
+# Python bytecode and build products
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+wheels/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Python environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python test, type-check, and coverage output
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.pyright/
+.ruff_cache/
+.pyre/
+.hypothesis/
+
+# Node/Pi dependency installs and local caches
+node_modules/
+.cache/
+pip-cache/
+uv-cache/
+wheelhouse/
+.npm/
+.pnpm-store/
+.yarn/cache/
+.yarn/unplugged/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Environment files and local configuration
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+*.local.yaml
+*.local.yml
+*.local.json
+*.local.toml
+*.secret
+*.secrets
+*.token
+*.tokens
+
+# Credentials and private key material
+secrets/
+credentials/
+private/
+.netrc
+.npmrc
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+
+# Agent Team runtime state if accidentally placed in the repository
+/.agent-team/
+/.hermes/
+/state/
+/runtime/
+/runtime.lock
+/runtime-owner.json
+/runtime.pid
+/.agent-team-pi.lock
+/sessions/
+/checkpoints/
+/projects/
+/artifacts/
+/logs/
+/workspace/
+/memory/
+/knowledge/
+/data/
+/tmp/
+/reports/
+*.sqlite
+*.sqlite3
+*.db
+*.pid
+
+# Downloaded third-party bootstrap/install blobs
+/bootstrap/
+/downloads/
+/vendor-downloads/
+*.download
+*.part
+*.whl
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+
+# Pi runtime state. Keep declarative .pi/settings.json trackable.
+/.pi/agent/
+/.pi/agent-team/
+/.pi/sessions/
+/.pi/state/
+/.pi/cache/
+/.pi/keys.toml
+/.pi/*.local.*
+/pi/.pi/
+/pi/node_modules/
+/pi/.cache/
+/pi/.state/
+/pi/.env
+/pi/.env.*
+!/pi/.env.example
+!/pi/.env.sample
+!/pi/.env.template
+
+# Downloaded third-party bootstrap installers
+/get-pip.py
+
+# Logs and temporary/editor files
+*.log
+*.tmp
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+.idea/

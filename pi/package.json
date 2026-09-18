@@ -1,0 +1,25 @@
+{
+  "name": "@agent-team/pi-assets",
+  "version": "0.1.0",
+  "private": true,
+  "description": "First-party Pi assets for the Agent Team runtime",
+  "license": "MIT",
+  "pi": {
+    "extensions": ["extensions/**/*.ts"],
+    "skills": ["skills"],
+    "prompts": ["prompts"],
+    "themes": ["themes"]
+  },
+  "files": [
+    "extensions",
+    "skills",
+    "prompts",
+    "themes",
+    "agents",
+    "manifest.json",
+    "manifest_validator.py",
+    "LICENSE",
+    "README.md",
+    "tests/test_manifest.py"
+  ]
+}

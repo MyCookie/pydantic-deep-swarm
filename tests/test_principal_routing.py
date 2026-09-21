@@ -1,4 +1,4 @@
-"""Tests for the clarified Hermes Principal -> Agent Team handoff."""
+"""Tests for the session-aware typed delegation adapter handoff."""
 
 from __future__ import annotations
 

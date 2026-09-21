@@ -12,12 +12,9 @@ The complete request lifecycle is documented in the
 ## Component map
 
 ```text
-User / Hermes
-      │
-      ▼
-Hermes Principal and typed delegation plugin
-      │                    direct HTTP client
-      └──────────┬──────────────────┘
+        External client
+                 │
+                 │ message or typed ProjectBrief
                  ▼
         FastAPI HTTP service
                  │
@@ -35,6 +32,9 @@ Hermes Principal and typed delegation plugin
                  ▼                   ▼                   ▼
            artifact store       project store      memory/knowledge
 ```
+
+The caller is outside this architecture boundary. Its identity, interface, and
+user-facing routing are implementation details of the invoking system.
 
 ## Model roles
 
@@ -54,7 +54,8 @@ The contracts in [`src/agent_team/contracts`](../src/agent_team/contracts/__init
 are the architecture boundary:
 
 - `PrincipalDecision` prevents an incomplete delegation action.
-- `ProjectBrief` uses stable requirement and acceptance-criterion IDs.
+- [`ProjectBrief`](project-brief.md) defines the objective and uses stable
+  requirement and acceptance-criterion IDs.
 - `ManagerPlan` validates task, role, tool, and dependency identities.
 - `WorkerOutput` excludes runtime-owned worker identity and process state.
 - `WorkerResult` is the compact internal worker handoff.

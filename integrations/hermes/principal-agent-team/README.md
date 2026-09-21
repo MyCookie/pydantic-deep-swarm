@@ -1,8 +1,9 @@
-# Hermes Principal integration
+# Hermes integration adapter
 
-This first-party Hermes plugin registers the session-aware
-`delegate_to_agent_team` tool. It keeps Hermes's normal AIAgent as the
-user-facing Principal and sends typed briefs directly to Agent Team.
+This optional first-party plugin registers the session-aware
+`delegate_to_agent_team` tool and translates an authored brief plus caller
+session context into the Agent Team HTTP contract. Agent Team does not depend on
+the caller's identity or user-facing routing model.
 
 Install or update it explicitly from a trusted Agent Team revision:
 

@@ -292,8 +292,8 @@ agent-team swarm status --json
 When `AGENT_TEAM_API_TOKEN` is nonempty, add
 `-H "Authorization: Bearer $AGENT_TEAM_API_TOKEN"` to direct Agent Team curl
 commands. Bootstrap, swarm control, the CLI status/cancel commands, and the
-Hermes delegation plugin read the token automatically. `LLM_API_KEY` remains a
-separate credential sent only to the model endpoint.
+optional delegation adapter read the token automatically. `LLM_API_KEY` remains
+a separate credential sent only to the model endpoint.
 
 Expected results are HTTP 200 with `status: ok` and `ready: true`, an
 accessible external state directory, an `up` s6 service, and no unexplained

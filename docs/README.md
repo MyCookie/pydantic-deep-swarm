@@ -7,8 +7,10 @@ architecture, runtime behavior, operations, and testing guidance live here.
 ## Start here
 
 - [End-to-end workflow](end-to-end-workflow.md) — follows a request from the
-  Hermes Principal or HTTP API through planning, workers, verification,
-  persistence, and the final response.
+  external client boundary through planning, workers, verification,
+  persistence, and the response.
+- [ProjectBrief contract](project-brief.md) — field structure, HTTP envelope,
+  validation, planning use, evidence checks, and persistence lifecycle.
 - [Architecture](architecture.md) — components, typed boundaries, trust model,
   process ownership, and durable state.
 - [Operations](operations.md) — configuration, startup, bootstrap, health,
@@ -26,7 +28,7 @@ validated and distributed with that component:
 - [Pi package](../pi/README.md)
 - [Agent Team delegation skill](../pi/skills/agent-team-delegation/SKILL.md)
 - [Principal handoff template](../pi/prompts/principal-handoff.md)
-- [Hermes Principal plugin](../integrations/hermes/principal-agent-team/README.md)
+- [Optional delegation adapter](../integrations/hermes/principal-agent-team/README.md)
 - [Git provenance schema and policy](../provenance/README.md)
 
 Those files are component specifications, not competing top-level architecture

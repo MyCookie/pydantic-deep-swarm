@@ -1,9 +1,10 @@
-"""Hermes Principal -> Agent Team typed delegation tool.
+"""Optional session-aware Agent Team typed delegation adapter.
 
-The normal Hermes AIAgent remains the user-facing Principal. This plugin does
-not intercept gateway dispatch or bypass Hermes authorization. It registers one
-session-aware tool that sends a typed ProjectBrief directly to the Agent Team
-Manager/workers endpoint, avoiding a second Principal intake.
+The plugin does not intercept gateway dispatch or bypass host authorization. It
+registers one session-aware tool that sends a typed ProjectBrief directly to the
+Agent Team Manager/workers endpoint, avoiding a second Principal intake. The
+invoking application's identity and user-facing routing remain outside the
+Agent Team architecture boundary.
 """
 
 from __future__ import annotations
@@ -16,8 +17,7 @@ from typing import Any
 import httpx
 
 
-# Retained as configuration/documentation identity for the existing deployment;
-# routing is now owned by Hermes's normal Matrix adapter and AIAgent.
+# Retained as configuration identity for existing adapter deployments.
 PRINCIPAL_ROOM_ID = os.getenv("AGENT_TEAM_PRINCIPAL_ROOM_ID", "")
 DEFAULT_AGENT_TEAM_URL = "http://127.0.0.1:8080"
 logger = logging.getLogger("hermes.principal-agent-team")

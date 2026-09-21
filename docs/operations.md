@@ -122,13 +122,14 @@ export AGENT_TEAM_API_TOKEN=""  # empty/unset keeps anonymous local mode
 When nonempty, every Agent Team route—including `/health`, `/ready`, `/models`,
 OpenAPI, and documentation—is protected by Bearer authentication. Bootstrap,
 swarm control, `agent-team status`, `agent-team cancel`, live E2E tests, and the
-Hermes delegation plugin read the same variable automatically. Keep it separate
-from `LLM_API_KEY`, which is sent only to the model endpoint.
+optional delegation adapter read the same variable automatically. Keep it
+separate from `LLM_API_KEY`, which is sent only to the model endpoint.
 
 The first-party plugin source is versioned under
 `integrations/hermes/principal-agent-team/`. Install or update that directory
-explicitly from the same trusted Agent Team revision before restarting Hermes;
-the acceptance tests load this repository copy rather than host-local state.
+explicitly from the same trusted Agent Team revision before restarting the host
+gateway; the acceptance tests load this repository copy rather than host-local
+state.
 
 For a direct request in authenticated mode:
 

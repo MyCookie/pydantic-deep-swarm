@@ -1,7 +1,7 @@
 name: principal-agent-team
 version: "1.0"
 manifest_version: 2
-description: Register a session-aware typed delegation tool for the normal Hermes Principal
+description: Register a session-aware typed delegation adapter for Agent Team
 config_schema:
   agent_team_url:
     type: str

@@ -1,13 +1,14 @@
 # Agent Team end-to-end workflow
 
 This document follows one request across every supported Agent Team boundary.
-It covers both the Hermes Principal integration and direct HTTP intake.
+External clients enter through the public HTTP message or typed-delegation
+routes; the identity and user-facing behavior of the caller are implementation
+details outside the Agent Team runtime.
 
 ## Participants
 
-- **Hermes Principal** — the normal user-facing Hermes AIAgent. It answers small
-  requests itself and may call the typed Agent Team delegation tool for
-  substantial work.
+- **External client** — creates or reuses a session, then submits either a user
+  message or an already-authored typed brief through the public HTTP contract.
 - **Agent Team HTTP service** — owns durable sessions and exposes the public
   request, delegation, report, reset, cancellation, health, readiness, and model
   inspection routes.
@@ -29,37 +30,35 @@ The workflow crosses components through models defined in
 
 | Boundary | Contract | Purpose |
 | --- | --- | --- |
-| Principal → Team Manager | `ProjectBrief` | Objective, requirements, constraints, acceptance criteria, permissions, context references, and desired output |
+| Principal → Team Manager | [`ProjectBrief`](project-brief.md) | Objective, requirements, constraints, acceptance criteria, permissions, context references, and desired output |
 | Team Manager → runtime | `ManagerPlan` | Bounded tasks, roles, dependencies, tool grants, and review policy |
 | Worker → runtime | `WorkerOutput` | Compact status, evidence, acceptance results, artifacts, findings, and unresolved items |
 | Runtime → Principal | `CompletionReport` | Aggregated requirement results, verified acceptance results, artifacts, risks, findings, and final status |
 
 Raw Principal or worker reasoning transcripts do not cross these boundaries.
 
-## Two supported entry paths
+## Two supported request shapes
 
-### 1. Hermes typed delegation
+### 1. Typed brief submission
 
-Hermes remains the user-facing Principal. When it decides that work is
-substantial, the `delegate_to_agent_team` tool receives a Principal-authored
-`ProjectBrief` plus the injected Hermes `session_id`.
+An external client may submit an already-authored `ProjectBrief` without asking
+Agent Team to repeat intake or delegation decisions.
 
-The plugin:
+The client:
 
-1. Derives the stable client key `hermes:<session_id>`.
-2. Calls `POST /sessions`; the durable session store creates or reuses the Agent
-   Team session associated with that client key.
-3. Calls `POST /sessions/{agent_team_session_id}/delegations` with the typed
+1. Calls `POST /sessions` with its own stable client key or metadata; the durable
+   session store creates or reuses the associated Agent Team session.
+2. Calls `POST /sessions/{agent_team_session_id}/delegations` with the typed
    brief.
-4. The service calls `AgentTeamEngine.run_delegated_brief()` directly. It does
+3. The service calls `AgentTeamEngine.run_delegated_brief()` directly. It does
    not send the already-authored brief through a second Principal intake.
-5. The plugin returns only status, project ID, concise summary, verified
-   artifacts, and bounded unresolved items to Hermes.
+4. The response exposes only status, project ID, concise summary, verified
+   artifacts, and bounded unresolved items.
 
-The repository-side handoff policy is specified by the
+Repository-side handoff guidance is specified by the
 [delegation skill](../pi/skills/agent-team-delegation/SKILL.md) and
-[handoff template](../pi/prompts/principal-handoff.md). The installed Hermes
-plugin remains outside this repository and uses the documented HTTP contract.
+[handoff template](../pi/prompts/principal-handoff.md). Optional client adapters
+use the same HTTP contract without becoming part of the runtime architecture.
 
 ### 2. Direct HTTP conversation
 
@@ -79,7 +78,7 @@ A direct client:
 ## Delegated project sequence
 
 ```text
-Hermes Principal or direct Agent Team Principal
+Typed brief or Agent Team Principal decision
                     │
                     │ ProjectBrief
                     ▼
@@ -248,6 +247,6 @@ The principal executable specification is
 [`tests/test_end_to_end_acceptance.py`](../tests/test_end_to_end_acceptance.py).
 It covers direct answers, typed delegation, reviewed work, artifact proof,
 Manager and worker failures, malformed output, clarification, timeout, tool
-rejection, cancellation, persistence, and the Hermes plugin boundary.
+rejection, cancellation, persistence, and the external adapter boundary.
 
 See [Testing](testing.md) for the deterministic and live verification commands.

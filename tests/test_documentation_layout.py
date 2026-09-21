@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from agent_team.contracts import ProjectBrief
+
 
 ROOT = Path(__file__).parents[1]
 DOCS = ROOT / "docs"
@@ -14,6 +16,7 @@ EXPECTED_DOCS = {
     "end-to-end-workflow.md",
     "gitops-runbook.md",
     "operations.md",
+    "project-brief.md",
     "testing.md",
 }
 STALE_TOP_LEVEL = {
@@ -23,6 +26,10 @@ STALE_TOP_LEVEL = {
     "IMPLEMENTATION_STATUS.md",
     "PROGRESS.md",
     "TDD_DOCUMENTATION.md",
+}
+COLOCATED_READER_DOCS = {
+    ROOT / "integrations" / "hermes" / "principal-agent-team" / "README.md",
+    ROOT / "integrations" / "hermes" / "principal-agent-team" / "plugin.yaml",
 }
 
 
@@ -36,7 +43,7 @@ def test_reader_documentation_is_consolidated_under_docs():
 def test_end_to_end_workflow_covers_every_runtime_boundary():
     workflow = (DOCS / "end-to-end-workflow.md").read_text(encoding="utf-8").lower()
     for boundary in (
-        "hermes principal",
+        "external client",
         "projectbrief",
         "team manager",
         "worker",
@@ -46,6 +53,41 @@ def test_end_to_end_workflow_covers_every_runtime_boundary():
         "cancellation",
     ):
         assert boundary in workflow
+
+
+def test_project_brief_documentation_covers_the_contract_and_runtime_lifecycle():
+    raw_document = (DOCS / "project-brief.md").read_text(encoding="utf-8")
+    document = raw_document.lower()
+    contract_section = raw_document.split("A `Requirement` contains:", 1)[0]
+    documented_fields = set(re.findall(r"^\| `([^`]+)` \|", contract_section, re.MULTILINE))
+    assert documented_fields == set(ProjectBrief.model_fields)
+    for topic in (
+        "canonical contract",
+        "http request envelope",
+        "managerplan",
+        "completionreport",
+        "validation",
+        "persistence",
+        "redaction",
+    ):
+        assert topic in document
+    assert "project-brief.md" in (DOCS / "README.md").read_text(encoding="utf-8")
+
+
+def test_reader_documentation_treats_the_invoker_as_an_implementation_detail():
+    documents = [
+        ROOT / "README.md",
+        *sorted(DOCS.glob("*.md")),
+        *sorted(COLOCATED_READER_DOCS),
+    ]
+    forbidden_phrase = "hermes" + " principal"
+    explicit_principal_mentions = [
+        str(document.relative_to(ROOT))
+        for document in documents
+        if forbidden_phrase in document.read_text(encoding="utf-8").lower()
+    ]
+
+    assert explicit_principal_mentions == []
 
 
 def test_documentation_has_no_broken_relative_markdown_links():

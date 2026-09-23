@@ -12,6 +12,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+import shutil
+from copy import deepcopy
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -21,6 +24,12 @@ import httpx
 PRINCIPAL_ROOM_ID = os.getenv("AGENT_TEAM_PRINCIPAL_ROOM_ID", "")
 DEFAULT_AGENT_TEAM_URL = "http://127.0.0.1:8080"
 logger = logging.getLogger("hermes.principal-agent-team")
+
+WORKER_EXECUTION_BOUNDARY = (
+    "Agent Team workers have no terminal or Hermes-native tool bridge. "
+    "The Hermes Principal must execute GitHub CLI operations before or after delegation and pass "
+    "the resulting data through relevant_context."
+)
 
 
 PROJECT_BRIEF_SCHEMA = {
@@ -74,6 +83,45 @@ PROJECT_BRIEF_SCHEMA = {
         "required": ["objective", "desired_output"],
     },
 }
+
+
+def _resolve_github_cli_path(configured_path: str = "") -> str:
+    """Return an executable ``gh`` path without relying only on the process PATH."""
+    candidates: list[str] = []
+    if configured_path.strip():
+        candidates.append(configured_path.strip())
+    if discovered := shutil.which("gh"):
+        candidates.append(discovered)
+    if homebrew_prefix := os.getenv("HOMEBREW_PREFIX", "").strip():
+        candidates.append(str(Path(homebrew_prefix).expanduser() / "bin" / "gh"))
+    for candidate in candidates:
+        path = Path(candidate).expanduser()
+        if path.is_file() and os.access(path, os.X_OK):
+            return str(path.resolve())
+    return ""
+
+
+def _github_cli_guidance(github_cli_path: str) -> str:
+    guidance = WORKER_EXECUTION_BOUNDARY
+    if github_cli_path:
+        guidance += (
+            f" The GitHub CLI resolved to {github_cli_path}; plain gh may be absent from PATH, "
+            "so invoke this exact absolute path."
+        )
+    return guidance
+
+
+def _prepare_brief(params: dict[str, Any], github_cli_path: str) -> dict[str, Any]:
+    """Copy a brief and make the Principal/worker execution boundary explicit."""
+    brief = deepcopy(params)
+    relevant_context = brief.get("relevant_context")
+    if not isinstance(relevant_context, list):
+        relevant_context = []
+    guidance = _github_cli_guidance(github_cli_path)
+    if guidance not in relevant_context:
+        relevant_context.append(guidance)
+    brief["relevant_context"] = relevant_context
+    return brief
 
 
 def should_route(platform: Any, room_id: Any) -> bool:
@@ -130,6 +178,7 @@ async def _delegate(
     *,
     session_id: str | None,
     api_token: str = "",
+    github_cli_path: str = "",
 ) -> str:
     """Validate the typed handoff and call the direct delegation endpoint."""
     if not session_id:
@@ -170,7 +219,7 @@ async def _delegate(
     result = await _post(
         base_url,
         f"/sessions/{agent_session_id}/delegations",
-        {"brief": params},
+        {"brief": _prepare_brief(params, github_cli_path)},
         api_token=api_token,
     )
     return _compact_result(result)
@@ -181,6 +230,9 @@ def register(ctx: Any) -> None:
     configured_url = ctx.get_config("agent_team_url", None)
     base_url = str(configured_url or os.getenv("AGENT_TEAM_URL") or DEFAULT_AGENT_TEAM_URL).strip()
     api_token = os.getenv("AGENT_TEAM_API_TOKEN", "")
+    github_cli_path = _resolve_github_cli_path(str(ctx.get_config("github_cli_path", "") or ""))
+    tool_schema = deepcopy(PROJECT_BRIEF_SCHEMA)
+    tool_schema["description"] = f"{tool_schema['description']} {_github_cli_guidance(github_cli_path)}"
 
     async def handle_delegate(params: dict[str, Any], **kwargs: Any) -> str:
         return await _delegate(
@@ -188,13 +240,17 @@ def register(ctx: Any) -> None:
             base_url,
             session_id=kwargs.get("session_id"),
             api_token=api_token,
+            github_cli_path=github_cli_path,
         )
 
     ctx.register_tool(
         name="delegate_to_agent_team",
         toolset="agent_team",
-        schema=PROJECT_BRIEF_SCHEMA,
+        schema=tool_schema,
         handler=handle_delegate,
         is_async=True,
-        description="Submit a typed Principal-authored brief directly to the Agent Team Manager/workers.",
+        description=(
+            "Submit a typed Principal-authored brief directly to the Agent Team Manager/workers. "
+            + _github_cli_guidance(github_cli_path)
+        ),
     )

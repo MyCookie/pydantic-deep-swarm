@@ -7,3 +7,7 @@ config_schema:
     type: str
     default: ""
     description: Optional Agent Team service URL; otherwise use AGENT_TEAM_URL or the documented local default
+  github_cli_path:
+    type: str
+    default: ""
+    description: Optional absolute gh path; auto-detects PATH and HOMEBREW_PREFIX when empty

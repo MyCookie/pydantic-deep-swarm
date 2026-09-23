@@ -147,6 +147,90 @@ def test_plugin_registers_typed_delegation_tool_not_gateway_bypass():
 
 
 @pytest.mark.asyncio
+async def test_plugin_routes_github_cli_work_to_principal_with_absolute_path(tmp_path, monkeypatch):
+    spec = importlib.util.spec_from_file_location("principal_agent_team_github_cli", PLUGIN_PATH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    homebrew_prefix = tmp_path / "homebrew"
+    github_cli = homebrew_prefix / "bin" / "gh"
+    github_cli.parent.mkdir(parents=True)
+    github_cli.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    github_cli.chmod(0o755)
+    monkeypatch.setenv("PATH", "")
+    monkeypatch.setenv("HOMEBREW_PREFIX", str(homebrew_prefix))
+
+    calls = []
+
+    async def post(base_url, path, payload, *, api_token=""):
+        calls.append((path, payload))
+        if path == "/sessions":
+            return {"session_id": "agent-session"}
+        return {
+            "status": "complete",
+            "project_id": "project-gh",
+            "report": {"status": "complete", "summary": "done"},
+        }
+
+    module._post = post
+    registrations = []
+
+    class Context:
+        def get_config(self, key, default=None):
+            return default
+
+        def register_tool(self, **kwargs):
+            registrations.append(kwargs)
+
+    module.register(Context())
+    registration = registrations[0]
+    assert str(github_cli) in registration["schema"]["description"]
+    assert "Hermes Principal" in registration["schema"]["description"]
+
+    brief = make_brief().model_dump(mode="json")
+    await registration["handler"](brief, session_id="hermes-session")
+
+    delegated_brief = calls[1][1]["brief"]
+    context = delegated_brief["relevant_context"]
+    assert any(str(github_cli) in item for item in context)
+    assert any("workers have no terminal" in item for item in context)
+    assert brief["relevant_context"] == []
+
+
+def test_plugin_resolves_github_cli_from_principal_path(tmp_path, monkeypatch):
+    spec = importlib.util.spec_from_file_location("principal_agent_team_github_cli_path", PLUGIN_PATH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    github_cli = tmp_path / "path-bin" / "gh"
+    github_cli.parent.mkdir(parents=True)
+    github_cli.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    github_cli.chmod(0o755)
+    monkeypatch.setenv("PATH", str(github_cli.parent))
+    monkeypatch.delenv("HOMEBREW_PREFIX", raising=False)
+
+    assert module._resolve_github_cli_path() == str(github_cli)
+
+
+def test_plugin_prefers_configured_github_cli_path(tmp_path, monkeypatch):
+    spec = importlib.util.spec_from_file_location("principal_agent_team_github_cli_config", PLUGIN_PATH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    configured_cli = tmp_path / "configured" / "gh"
+    path_cli = tmp_path / "path-bin" / "gh"
+    homebrew_cli = tmp_path / "homebrew" / "bin" / "gh"
+    for github_cli in (configured_cli, path_cli, homebrew_cli):
+        github_cli.parent.mkdir(parents=True, exist_ok=True)
+        github_cli.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        github_cli.chmod(0o755)
+    monkeypatch.setenv("PATH", str(path_cli.parent))
+    monkeypatch.setenv("HOMEBREW_PREFIX", str(homebrew_cli.parents[1]))
+
+    assert module._resolve_github_cli_path(str(configured_cli)) == str(configured_cli)
+
+
+@pytest.mark.asyncio
 async def test_plugin_propagates_optional_agent_team_control_token(monkeypatch):
     spec = importlib.util.spec_from_file_location("principal_agent_team_auth", PLUGIN_PATH)
     module = importlib.util.module_from_spec(spec)

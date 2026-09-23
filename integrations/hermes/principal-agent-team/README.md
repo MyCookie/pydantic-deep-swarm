@@ -19,5 +19,14 @@ loopback default. If optional Agent Team HTTP authentication is enabled, the
 gateway process must receive `AGENT_TEAM_API_TOKEN`; the plugin forwards that
 control credential without serializing it into plugin configuration.
 
+Agent Team workers deliberately have no terminal or Hermes-native tool bridge.
+When delegated work needs GitHub data or actions, the adapter tells the Hermes
+Principal to execute `gh` before or after delegation and pass the resulting data
+through `relevant_context`. The adapter resolves `gh` from `PATH` or
+`HOMEBREW_PREFIX`, so a Homebrew-installed CLI
+continues to work when Hermes's persistent login-shell snapshot omits Homebrew
+from `PATH`. Set plugin option `github_cli_path` only when auto-detection cannot
+find the executable.
+
 This plugin is part of the AGPL-3.0-only Agent Team runtime; see the repository
 root `LICENSE`.

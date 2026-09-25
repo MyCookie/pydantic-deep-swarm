@@ -191,7 +191,7 @@ export AGENT_TEAM_URL="${AGENT_TEAM_URL:-http://localhost:8080}"
 export AGENT_TEAM_SERVICE_DIR="${AGENT_TEAM_SERVICE_DIR:?set AGENT_TEAM_SERVICE_DIR to the live service directory}"
 export AGENT_TEAM_SERVICE_DEFINITION="${AGENT_TEAM_SERVICE_DEFINITION:?set AGENT_TEAM_SERVICE_DEFINITION to the s6 definition}"
 export PI_BINARY="${PI_BINARY:?set PI_BINARY to the preinstalled Pi path}"
-export MODEL_ENDPOINT="${MODEL_ENDPOINT:?set MODEL_ENDPOINT to the vLLM URL}"
+export MODEL_ENDPOINT="${MODEL_ENDPOINT:?set MODEL_ENDPOINT to the OpenAI-compatible URL}"
 REVISION="$(git rev-parse --verify HEAD)"
 
 agent-team bootstrap \
@@ -298,7 +298,7 @@ a separate credential sent only to the model endpoint.
 Expected results are HTTP 200 with `status: ok` and `ready: true`, an
 accessible external state directory, an `up` s6 service, and no unexplained
 model/configuration drift. `agent-team swarm status --json` compares the model
-advertised by vLLM, the source configuration, the source and live s6 runfiles,
+advertised by the configured endpoint, the source configuration, the source and live s6 runfiles,
 and all Agent Team API roles.
 
 For a deployment change, verify again after restart rather than trusting the

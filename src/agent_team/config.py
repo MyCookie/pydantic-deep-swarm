@@ -112,7 +112,7 @@ class Config(BaseModel):
             runtime_values["workspace_dir"] = Path(workspace_override).expanduser()
 
         base_url = os.getenv(f"{env_prefix}LLM_BASE_URL", "http://model-service:8000/v1")
-        model_name = os.getenv(f"{env_prefix}LLM_MODEL", "nvidia/Qwen3.8-27B-NVFP4")
+        model_name = os.getenv(f"{env_prefix}LLM_MODEL", "auto")
         principal_model = os.getenv(f"{env_prefix}PRINCIPAL_MODEL", model_name)
         manager_model = os.getenv(f"{env_prefix}MANAGER_MODEL", model_name)
         worker_model = os.getenv(f"{env_prefix}WORKER_MODEL", model_name)

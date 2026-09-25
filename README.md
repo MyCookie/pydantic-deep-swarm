@@ -67,7 +67,7 @@ export AGENT_TEAM_PYTHON="${AGENT_TEAM_PYTHON:-$AGENT_TEAM_VENV/bin/python}"
 export AGENT_TEAM_STATE_DIR="${AGENT_TEAM_STATE_DIR:?set external state storage}"
 export AGENT_TEAM_SERVICE_DIR="${AGENT_TEAM_SERVICE_DIR:?set the live service directory}"
 export LLM_BASE_URL="${LLM_BASE_URL:?set the OpenAI-compatible base URL}"
-export LLM_MODEL="${LLM_MODEL:?set the advertised model ID}"
+export LLM_MODEL="${LLM_MODEL:-auto}"  # set an explicit ID only for a multi-model endpoint
 ```
 
 Validate the source and deterministic suite:

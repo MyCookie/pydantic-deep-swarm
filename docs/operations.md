@@ -42,12 +42,17 @@ Environment fallback configuration uses:
 ```sh
 export LLM_BASE_URL="${LLM_BASE_URL:?set the OpenAI-compatible base URL}"
 export LLM_API_KEY=""  # leave empty for an unauthenticated local endpoint
-export LLM_MODEL="${LLM_MODEL:?set the advertised model ID}"
+export LLM_MODEL="${LLM_MODEL:-auto}"  # discovers the sole advertised model
 export PRINCIPAL_MODEL="${PRINCIPAL_MODEL:-$LLM_MODEL}"
 export MANAGER_MODEL="${MANAGER_MODEL:-$LLM_MODEL}"
 export WORKER_MODEL="${WORKER_MODEL:-$LLM_MODEL}"
 export CURATOR_MODEL="${CURATOR_MODEL:-$WORKER_MODEL}"
 ```
+
+`LLM_MODEL=auto` queries the standard `GET /models` endpoint and selects the
+model only when exactly one ID is advertised. Configure an explicit ID when the
+endpoint advertises multiple models; the runtime fails closed rather than
+guessing between them.
 
 A YAML configuration at `$AGENT_TEAM_STATE_DIR/config/config.yaml` becomes
 authoritative when present. The loader supports a bounded substitution grammar:
@@ -252,9 +257,11 @@ agent-team swarm status --json
 agent-team swarm reconcile --dry-run --json
 ```
 
-A non-dry-run reconcile updates managed model defaults/runfiles, restarts through
-s6, and verifies convergence. It is an operational mutation and should be run
-only with the intended live paths and privileges.
+A non-dry-run reconcile updates only the live deployment runfile, never tracked
+source defaults. Auto mode pins the live selection to `auto`; `--model` pins the
+chosen advertised ID. The command then restarts through s6 and verifies
+convergence. It is an operational mutation and should be run only with the
+intended live paths and privileges.
 
 ## Pi assets and release operations
 

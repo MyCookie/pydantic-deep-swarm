@@ -15,7 +15,7 @@ from .control import (
     S6ServiceController,
     SwarmConfigReconciler,
     SwarmManager,
-    VLLMModelDiscovery,
+    OpenAIModelDiscovery,
 )
 from .observability import get_logger
 from .pi_reconciler import PiAssetReconciler, PiReconcileError
@@ -37,7 +37,7 @@ def _project_root() -> Path:
 def build_swarm_manager() -> SwarmManager:
     """Build the default control plane; dependency injection remains available in tests."""
     root = Path(os.getenv("AGENT_TEAM_PROJECT_ROOT", str(_project_root())))
-    vllm_url = os.getenv("LLM_BASE_URL", "http://model-service:8000/v1")
+    model_url = os.getenv("LLM_BASE_URL", "http://model-service:8000/v1")
     api_url = (
         os.getenv("AGENT_TEAM_API_URL")
         or os.getenv("AGENT_TEAM_URL")
@@ -60,7 +60,7 @@ def build_swarm_manager() -> SwarmManager:
         os.getenv("AGENT_TEAM_LIVE_RUNFILE", str(service_dir / "run"))
     )
     return SwarmManager(
-        VLLMModelDiscovery(vllm_url, api_key=os.getenv("LLM_API_KEY", "")),
+        OpenAIModelDiscovery(model_url, api_key=os.getenv("LLM_API_KEY", "")),
         AgentTeamAPIClient(
             api_url,
             api_token=os.getenv("AGENT_TEAM_API_TOKEN", ""),
@@ -85,7 +85,7 @@ def swarm():
 
 @swarm.command("detect")
 def swarm_detect():
-    """Print the single model advertised by vLLM."""
+    """Print the single model advertised by the configured endpoint."""
     try:
         click.echo(build_swarm_manager().discovery.detect_model())
     except Exception as exc:
@@ -95,7 +95,7 @@ def swarm_detect():
 @swarm.command("status")
 @click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON.")
 def swarm_status(as_json: bool):
-    """Inspect model drift across vLLM, source, live s6, and the API."""
+    """Inspect model drift across the endpoint, deployment, and API."""
     try:
         status = build_swarm_manager().inspect()
     except Exception as exc:
@@ -105,7 +105,7 @@ def swarm_status(as_json: bool):
         click.echo(status.model_dump_json(indent=2))
     else:
         click.echo(f"expected model: {status.expected_model}")
-        click.echo(f"vLLM models: {', '.join(status.advertised_models) or '(none)'}")
+        click.echo(f"endpoint models: {', '.join(status.advertised_models) or '(none)'}")
         click.echo(f"Python config: {status.config_model}")
         click.echo(f"source runfile: {status.source_model}")
         click.echo(f"live runfile: {status.live_model}")
@@ -122,7 +122,7 @@ def swarm_status(as_json: bool):
 
 
 @swarm.command("reconcile")
-@click.option("--model", default=None, help="Explicit model; defaults to vLLM auto-detection.")
+@click.option("--model", default=None, help="Explicit model; defaults to endpoint auto-detection.")
 @click.option("--dry-run", is_flag=True, help="Plan changes without writing or restarting.")
 @click.option("--no-restart", is_flag=True, help="Do not restart the supervised service.")
 @click.option("--no-verify", is_flag=True, help="Skip post-restart verification.")
@@ -670,7 +670,7 @@ retention:
 
     click.echo("\nInitialization complete!")
     click.echo("\nSet environment variables:")
-    click.echo("  export LLM_BASE_URL=${LLM_BASE_URL:?set LLM_BASE_URL to the vLLM URL}")
+    click.echo("  export LLM_BASE_URL=${LLM_BASE_URL:?set LLM_BASE_URL to the OpenAI-compatible URL}")
     click.echo('  export LLM_API_KEY=""  # optional; only needed if the model service requires auth')
     click.echo('  export AGENT_TEAM_API_TOKEN=""  # optional; enables Agent Team HTTP Bearer auth')
     click.echo("  export PRINCIPAL_MODEL=model-name")

@@ -7,7 +7,7 @@ from .configuration import (
     extract_config_model,
     extract_runfile_model,
 )
-from .discovery import ModelDiscoveryError, VLLMModelDiscovery
+from .discovery import ModelDiscoveryError, OpenAIModelDiscovery, VLLMModelDiscovery
 from .manager import SwarmManager, SwarmReconcileResult, SwarmStatus
 from .service import S6ServiceController, ServiceControlError
 
@@ -17,6 +17,7 @@ __all__ = [
     "ConfigReconcileError",
     "SwarmConfigReconciler",
     "ModelDiscoveryError",
+    "OpenAIModelDiscovery",
     "VLLMModelDiscovery",
     "SwarmManager",
     "SwarmReconcileResult",

@@ -6,7 +6,7 @@ from agent_team.cli import build_swarm_manager, cli
 from agent_team.control.manager import SwarmStatus, SwarmReconcileResult
 
 
-MODEL = "nvidia/Qwen3.8-27B-NVFP4"
+MODEL = "vendor/example-model"
 
 
 def test_default_swarm_manager_requires_injected_live_service_paths(monkeypatch):
@@ -36,17 +36,17 @@ def test_default_swarm_manager_keeps_model_and_control_credentials_separate(
             captured["control"] = (base_url, api_token)
 
     monkeypatch.setenv("AGENT_TEAM_SERVICE_DIR", str(tmp_path / "service"))
-    monkeypatch.setenv("LLM_BASE_URL", "http://vllm/v1")
+    monkeypatch.setenv("LLM_BASE_URL", "http://model/v1")
     monkeypatch.setenv("LLM_API_KEY", "model-token")
     monkeypatch.setenv("AGENT_TEAM_API_URL", "http://agent-team")
     monkeypatch.setenv("AGENT_TEAM_API_TOKEN", "control-token")
-    monkeypatch.setattr("agent_team.cli.VLLMModelDiscovery", Discovery)
+    monkeypatch.setattr("agent_team.cli.OpenAIModelDiscovery", Discovery)
     monkeypatch.setattr("agent_team.cli.AgentTeamAPIClient", API)
 
     build_swarm_manager()
 
     assert captured == {
-        "model": ("http://vllm/v1", "model-token"),
+        "model": ("http://model/v1", "model-token"),
         "control": ("http://agent-team", "control-token"),
     }
 
@@ -104,7 +104,7 @@ def test_swarm_reconcile_cli_supports_dry_run_and_json(monkeypatch):
     )
 
     assert result.exit_code == 0
-    assert '"model": "nvidia/Qwen3.8-27B-NVFP4"' in result.output
+    assert '"model": "vendor/example-model"' in result.output
     assert manager.reconcile_calls == [
         (None, {"restart": False, "verify": True, "dry_run": True})
     ]

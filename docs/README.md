@@ -18,6 +18,11 @@ architecture, runtime behavior, operations, and testing guidance live here.
 - [GitOps runbook](gitops-runbook.md) — exact-revision promotion, Pi asset
   reconciliation, rollback, and operational recovery.
 
+## Planned contracts
+
+- [Owned model selection](model-selection-contract.md) — issue #5 decisions and
+  future acceptance gates; not implemented runtime behavior.
+
 ## Colocated specifications
 
 Some documentation remains beside the schema or package it governs so it can be

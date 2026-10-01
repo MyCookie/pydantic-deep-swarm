@@ -38,6 +38,18 @@ Raw Principal or worker reasoning transcripts do not cross these boundaries.
 
 ## Two supported entry paths
 
+For an unsupervised installation, initialize external state with `agent-team
+init`, start the HTTP process with `agent-team serve`, and inspect configuration,
+model discovery, and HTTP readiness with `agent-team doctor --json`. These paths
+do not require the optional s6 templates or service environment. `swarm detect`
+only queries the configured model endpoint. A stopped HTTP service makes doctor
+report unhealthy readiness; absent optional supervision does not.
+
+The optional s6 deployment uses the templates in `s6-service/` and retains the
+supervised `bootstrap` gate. Select it using `AGENT_TEAM_SUPERVISOR=s6` and a live
+`AGENT_TEAM_SERVICE_DIR`; select `none` to ignore inherited s6 settings. Swarm
+reconciliation is an s6 compatibility workflow rather than a core startup step.
+
 ### 1. Hermes typed delegation
 
 Hermes remains the user-facing Principal. When it decides that work is

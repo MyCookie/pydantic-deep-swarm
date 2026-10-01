@@ -9,7 +9,8 @@ from agent_team.control.manager import SwarmStatus, SwarmReconcileResult
 MODEL = "nvidia/Qwen3.8-27B-NVFP4"
 
 
-def test_default_swarm_manager_requires_injected_live_service_paths(monkeypatch):
+def test_explicit_s6_manager_requires_injected_live_service_paths(monkeypatch):
+    monkeypatch.setenv("AGENT_TEAM_SUPERVISOR", "s6")
     monkeypatch.delenv("AGENT_TEAM_SERVICE_DIR", raising=False)
     monkeypatch.delenv("AGENT_TEAM_LIVE_RUNFILE", raising=False)
 
@@ -86,7 +87,7 @@ class FakeManager:
 
 def test_swarm_detect_cli_returns_discovered_model(monkeypatch):
     manager = FakeManager()
-    monkeypatch.setattr("agent_team.cli.build_swarm_manager", lambda: manager)
+    monkeypatch.setattr("agent_team.cli.build_model_discovery", lambda: manager.discovery)
 
     result = CliRunner().invoke(cli, ["swarm", "detect"])
 

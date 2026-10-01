@@ -14,6 +14,7 @@ from agent_team.control.api import AgentTeamAPIClient
 from agent_team.control.configuration import (
     ConfigReconcileError,
     SwarmConfigReconciler,
+    extract_config_model,
     extract_runfile_model,
 )
 from agent_team.control.discovery import ModelDiscoveryError, VLLMModelDiscovery
@@ -210,6 +211,158 @@ def test_reconcile_updates_all_layers_restarts_and_verifies(tmp_path: Path):
     assert MODEL in source_config.read_text()
 
 
+def test_core_inspection_needs_no_supervisor_or_managed_files():
+    state = {"vllm_model": MODEL, "api_model": MODEL}
+    transport = mock_transport(state)
+    manager = SwarmManager(
+        VLLMModelDiscovery("http://vllm/v1", client=httpx.Client(transport=transport)),
+        AgentTeamAPIClient("http://agent", client=httpx.Client(transport=transport)),
+        effective_models={role: MODEL for role in ("principal", "manager", "worker", "curator")},
+    )
+    status = manager.inspect()
+    assert status.synchronized
+    assert status.supervisor_state == "not_configured"
+    manager.effective_models["worker"] = OLD_MODEL
+    assert "effective role worker" in manager.inspect().drift[0]
+    with pytest.raises(ServiceControlError, match="optional s6"):
+        manager.reconcile(dry_run=True)
+
+
+def test_unavailable_supervisor_prevents_mutation_but_allows_plan(tmp_path):
+    paths = [tmp_path / name for name in ("config.py", "source", "live")]
+    paths[0].write_text('model = os.getenv("LLM_MODEL", "old/model")\n')
+    for path in paths[1:]:
+        path.write_text('export LLM_MODEL="${LLM_MODEL:-old/model}"\n')
+    originals = [path.read_text() for path in paths]
+    state = {"vllm_model": MODEL, "api_model": OLD_MODEL}
+    transport = mock_transport(state)
+
+    class Unavailable:
+        def preflight(self):
+            raise ServiceControlError("supervisor not running")
+
+        def restart(self):
+            pytest.fail("restart must not run")
+
+    manager = SwarmManager(
+        VLLMModelDiscovery("http://vllm/v1", client=httpx.Client(transport=transport)),
+        AgentTeamAPIClient("http://agent", client=httpx.Client(transport=transport)),
+        SwarmConfigReconciler(*paths), Unavailable(),
+    )
+    plan = manager.reconcile(dry_run=True)
+    assert len(plan.changed_files) == 3
+    assert plan.status.supervisor_state == "unavailable"
+    with pytest.raises(ServiceControlError, match="not running"):
+        manager.reconcile()
+    assert [path.read_text() for path in paths] == originals
+
+
+def test_no_restart_reports_pending_even_when_api_already_matches(tmp_path):
+    paths = [tmp_path / name for name in ("config.py", "source", "live")]
+    paths[0].write_text('model = os.getenv("LLM_MODEL", "old/model")\n')
+    for path in paths[1:]:
+        path.write_text('export LLM_MODEL="${LLM_MODEL:-old/model}"\n')
+    transport = mock_transport({"vllm_model": MODEL, "api_model": MODEL})
+
+    class Available:
+        def preflight(self):
+            raise ServiceControlError("supervisor not running")
+
+        def restart(self):
+            pytest.fail("restart disabled")
+
+    manager = SwarmManager(
+        VLLMModelDiscovery("http://vllm/v1", client=httpx.Client(transport=transport)),
+        AgentTeamAPIClient("http://agent", client=httpx.Client(transport=transport)),
+        SwarmConfigReconciler(*paths), Available(),
+    )
+    result = manager.reconcile(restart=False)
+    assert result.pending_restart
+    assert not result.verified
+    assert result.status.supervisor_state == "unavailable"
+    assert len(result.changed_files) == 3
+
+
+def test_core_inspection_reports_missing_effective_roles():
+    transport = mock_transport({"vllm_model": MODEL, "api_model": MODEL})
+    manager = SwarmManager(
+        VLLMModelDiscovery("http://vllm/v1", client=httpx.Client(transport=transport)),
+        AgentTeamAPIClient("http://agent", client=httpx.Client(transport=transport)),
+    )
+    assert not manager.inspect().synchronized
+    manager.effective_models = {"principal": MODEL}
+    status = manager.inspect()
+    assert not status.synchronized
+    assert any("effective role worker" in item for item in status.drift)
+
+
+def test_adapter_inspection_compares_effective_role_overrides(tmp_path):
+    paths = [tmp_path / name for name in ("config.py", "source", "live")]
+    paths[0].write_text(f'model = os.getenv("LLM_MODEL", "{MODEL}")\n')
+    for path in paths[1:]:
+        path.write_text(f'export LLM_MODEL="${{LLM_MODEL:-{MODEL}}}"\n')
+    transport = mock_transport({"vllm_model": MODEL, "api_model": MODEL})
+    manager = SwarmManager(
+        VLLMModelDiscovery("http://vllm/v1", client=httpx.Client(transport=transport)),
+        AgentTeamAPIClient("http://agent", client=httpx.Client(transport=transport)),
+        SwarmConfigReconciler(*paths),
+        effective_models={role: OLD_MODEL if role == "worker" else MODEL for role in ("principal", "manager", "worker", "curator")},
+    )
+    status = manager.inspect()
+    assert not status.synchronized
+    assert any("effective role worker" in item for item in status.drift)
+
+
+@pytest.mark.parametrize("override", [None, OLD_MODEL])
+def test_reconcile_refreshes_effective_models_without_hiding_overrides(tmp_path, override):
+    paths = [tmp_path / name for name in ("config.py", "source", "live")]
+    paths[0].write_text('model = os.getenv("LLM_MODEL", "old/model")\n')
+    for path in paths[1:]:
+        path.write_text('export LLM_MODEL="${LLM_MODEL:-old/model}"\n')
+    state = {"vllm_model": MODEL, "api_model": OLD_MODEL}
+    transport = mock_transport(state)
+
+    class Available:
+        def restart(self):
+            state["api_model"] = MODEL
+
+    def effective_models():
+        model = override or extract_config_model(paths[0].read_text())
+        return {role: model for role in ("principal", "manager", "worker", "curator")}
+
+    manager = SwarmManager(
+        VLLMModelDiscovery("http://vllm/v1", client=httpx.Client(transport=transport)),
+        AgentTeamAPIClient("http://agent", client=httpx.Client(transport=transport)),
+        SwarmConfigReconciler(*paths), Available(),
+        effective_models_provider=effective_models,
+        verification_attempts=1,
+    )
+    result = manager.reconcile()
+    assert result.restarted
+    assert result.verified is (override is None)
+    assert result.status.effective_models["worker"] == (override or MODEL)
+
+
+def test_s6_explicit_invalid_command_does_not_fall_back_to_path(tmp_path, monkeypatch):
+    monkeypatch.setattr("agent_team.control.service.shutil.which", lambda name: str(tmp_path / name))
+    controller = S6ServiceController(service_dir=tmp_path, command_candidates=(tmp_path / "missing",))
+    with pytest.raises(ServiceControlError, match="configured s6-svc"):
+        controller.preflight()
+
+
+def test_s6_preflight_rejects_down_service(tmp_path):
+    command = tmp_path / "tool"
+    command.write_text("#!/bin/sh\n")
+    command.chmod(0o755)
+    controller = S6ServiceController(
+        service_dir=tmp_path,
+        command_candidates=(command,), status_command_candidates=(command,),
+        runner=lambda *args, **kwargs: subprocess.CompletedProcess(args, 0, "down (exitcode 0) 1 seconds", ""),
+    )
+    with pytest.raises(ServiceControlError, match="not running"):
+        controller.preflight()
+
+
 def test_s6_controller_requires_injected_service_directory(monkeypatch):
     monkeypatch.delenv("AGENT_TEAM_SERVICE_DIR", raising=False)
 
@@ -223,21 +376,31 @@ def test_s6_controller_uses_absolute_command_path(tmp_path: Path):
     command = tmp_path / "s6-svc"
     command.write_text("#!/bin/sh\n")
     command.chmod(0o755)
+    status_command = tmp_path / "s6-svstat"
+    status_command.write_text("#!/bin/sh\n")
+    status_command.chmod(0o755)
     calls: list[list[str]] = []
+    timeouts: list[float] = []
 
     def runner(args, **kwargs):
         calls.append(args)
-        return type("Completed", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+        timeouts.append(kwargs["timeout"])
+        return type("Completed", (), {"returncode": 0, "stdout": "up (pid 123) 4 seconds", "stderr": ""})()
 
     controller = S6ServiceController(
         service_dir=service_dir,
         command_candidates=(command,),
+        status_command_candidates=(status_command,),
         runner=runner,
     )
 
     controller.restart()
 
-    assert calls == [[str(command), "-r", str(service_dir)]]
+    assert calls == [
+        [str(status_command), str(service_dir)],
+        [str(command), "-r", "-wr", "-T", "10000", str(service_dir)],
+    ]
+    assert timeouts == [5, 15]
 
 
 def test_reconcile_preflights_all_targets_before_writing(tmp_path: Path, monkeypatch):
@@ -278,12 +441,17 @@ def test_s6_controller_wraps_restart_failures(tmp_path: Path):
     command.write_text("#!/bin/sh\n")
     command.chmod(0o755)
 
+    status_command = tmp_path / "s6-svstat"
+    status_command.write_text("#!/bin/sh\n")
+    status_command.chmod(0o755)
+
     def runner(args, **kwargs):
         raise subprocess.CalledProcessError(111, args, stderr="permission denied")
 
     controller = S6ServiceController(
         service_dir=service_dir,
         command_candidates=(command,),
+        status_command_candidates=(status_command,),
         runner=runner,
     )
 

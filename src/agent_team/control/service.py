@@ -21,6 +21,7 @@ class S6ServiceController:
         *,
         service_dir: Path | str | None = None,
         command_candidates: Sequence[Path] | None = None,
+        status_command_candidates: Sequence[Path] | None = None,
         runner: Callable[..., Any] = subprocess.run,
     ) -> None:
         configured_service_dir = service_dir or os.getenv("AGENT_TEAM_SERVICE_DIR")
@@ -31,32 +32,57 @@ class S6ServiceController:
         self.service_dir = Path(configured_service_dir)
         configured_command = os.getenv("AGENT_TEAM_S6_SVC")
         defaults = (Path(configured_command),) if configured_command else ()
-        self.command_candidates = tuple(command_candidates or defaults)
+        self.command_candidates = tuple(defaults if command_candidates is None else command_candidates)
+        configured_status = os.getenv("AGENT_TEAM_S6_SVSTAT")
+        self.status_command_candidates = tuple(
+            (Path(configured_status),) if configured_status else ()
+        ) if status_command_candidates is None else tuple(status_command_candidates)
         self.runner = runner
 
-    def _resolve_command(self) -> str:
-        on_path = shutil.which("s6-svc")
-        if on_path:
-            return on_path
-        for candidate in self.command_candidates:
+    def _resolve_command(self, name: str = "s6-svc") -> str:
+        candidates = self.command_candidates if name == "s6-svc" else self.status_command_candidates
+        for candidate in candidates:
             if candidate.is_file() and candidate.stat().st_mode & 0o111:
                 return str(candidate)
+        if candidates:
+            raise ServiceControlError(f"configured {name} command is not executable")
+        on_path = shutil.which(name)
+        if on_path:
+            return on_path
         raise ServiceControlError(
-            "s6-svc was not found in PATH or configured via AGENT_TEAM_S6_SVC"
+            f"{name} was not found in PATH or explicitly configured"
         )
 
-    def restart(self) -> None:
-        """Restart the service through its live s6 supervise directory."""
-        if not self.service_dir.exists():
+    def preflight(self) -> None:
+        """Prove commands and the live supervisor are usable before changing files."""
+        if not self.service_dir.is_dir():
             raise ServiceControlError(f"s6 service directory does not exist: {self.service_dir}")
+        self._resolve_command()
+        command = self._resolve_command("s6-svstat")
+        try:
+            result = self.runner(
+                [command, str(self.service_dir)], check=True,
+                capture_output=True, text=True, timeout=5,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            detail = getattr(exc, "stderr", None) or str(exc)
+            raise ServiceControlError(f"s6 supervisor unavailable for {self.service_dir}: {detail}") from exc
+        if getattr(result, "returncode", 0) != 0:
+            raise ServiceControlError(f"s6 supervisor unavailable for {self.service_dir}: {getattr(result, 'stderr', '')}")
+        if not getattr(result, "stdout", "").strip().startswith("up "):
+            raise ServiceControlError(f"s6 service is not running: {self.service_dir}")
 
+    def restart(self) -> None:
+        """Wait for an actual restart before callers verify the new service."""
+        self.preflight()
         command = self._resolve_command()
         try:
             result = self.runner(
-                [command, "-r", str(self.service_dir)],
+                [command, "-r", "-wr", "-T", "10000", str(self.service_dir)],
                 check=True,
                 capture_output=True,
                 text=True,
+                timeout=15,
             )
         except PermissionError as exc:
             raise ServiceControlError(
@@ -69,6 +95,8 @@ class S6ServiceController:
             ) from exc
         except OSError as exc:
             raise ServiceControlError(f"unable to restart {self.service_dir}: {exc}") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise ServiceControlError(f"s6 restart timed out for {self.service_dir}") from exc
         if getattr(result, "returncode", 0) != 0:
             stderr = getattr(result, "stderr", "")
             raise ServiceControlError(

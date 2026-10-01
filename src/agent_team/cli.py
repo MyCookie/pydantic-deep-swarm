@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 
 import click
+import yaml
 
 from .bootstrap import BootstrapError, Bootstrapper, write_bootstrap_report
 from .config import get_config
@@ -18,6 +19,7 @@ from .control import (
     VLLMModelDiscovery,
 )
 from .observability import get_logger
+from .control.configuration import extract_config_model
 from .pi_reconciler import PiAssetReconciler, PiReconcileError
 from .provenance import (
     AssetProvenance,
@@ -34,15 +36,46 @@ def _project_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def build_swarm_manager() -> SwarmManager:
-    """Build the default control plane; dependency injection remains available in tests."""
+def build_model_discovery() -> VLLMModelDiscovery:
+    """Build discovery independently of supervisor configuration."""
+    effective = get_config()
+    fallback = os.getenv("LLM_BASE_URL", "http://model-service:8000/v1")
+    endpoints = {model.base_url or fallback for model in effective.models.values()} or {fallback}
+    if len(endpoints) != 1:
+        raise ValueError("swarm control requires a single model endpoint shared by all roles")
+    return VLLMModelDiscovery(
+        endpoints.pop(),
+        api_key=os.getenv("LLM_API_KEY", ""),
+    )
+
+
+def build_swarm_manager(*, supervisor: str | None = None) -> SwarmManager:
+    """Build core control or the optional s6 deployment adapter."""
+    configured_service_dir = os.getenv("AGENT_TEAM_SERVICE_DIR")
+    selected = supervisor or os.getenv("AGENT_TEAM_SUPERVISOR") or (
+        "s6" if configured_service_dir else "none"
+    )
+    if selected not in {"none", "s6"}:
+        raise ValueError("AGENT_TEAM_SUPERVISOR must be none or s6")
     root = Path(os.getenv("AGENT_TEAM_PROJECT_ROOT", str(_project_root())))
-    vllm_url = os.getenv("LLM_BASE_URL", "http://model-service:8000/v1")
     api_url = (
         os.getenv("AGENT_TEAM_API_URL")
         or os.getenv("AGENT_TEAM_URL")
         or "http://localhost:8080"
     )
+    discovery = build_model_discovery()
+    effective = get_config()
+    effective_models = {
+        role: model.model or os.getenv("LLM_MODEL", "nvidia/Qwen3.8-27B-NVFP4")
+        for role, model in effective.models.items()
+    }
+    api = AgentTeamAPIClient(api_url, api_token=os.getenv("AGENT_TEAM_API_TOKEN", ""))
+    if selected == "none":
+        return SwarmManager(
+            discovery,
+            api,
+            effective_models=effective_models,
+        )
     source_config = Path(
         os.getenv("AGENT_TEAM_CONFIG_SOURCE", str(root / "src/agent_team/config.py"))
     )
@@ -52,21 +85,30 @@ def build_swarm_manager() -> SwarmManager:
             str(root / "s6-service/agent-team/run"),
         )
     )
-    configured_service_dir = os.getenv("AGENT_TEAM_SERVICE_DIR")
     if not configured_service_dir:
         raise ValueError("set AGENT_TEAM_SERVICE_DIR for the live s6 service")
     service_dir = Path(configured_service_dir)
     live_runfile = Path(
         os.getenv("AGENT_TEAM_LIVE_RUNFILE", str(service_dir / "run"))
     )
+
+    def current_effective_models() -> dict[str, str]:
+        fallback_model = extract_config_model(source_config.read_text(encoding="utf-8"))
+        if fallback_model is None:
+            raise ValueError(f"cannot extract LLM_MODEL default from {source_config}")
+        current = get_config(fallback_model=fallback_model)
+        return {
+            role: model.model or os.getenv("LLM_MODEL", "nvidia/Qwen3.8-27B-NVFP4")
+            for role, model in current.models.items()
+        }
+
     return SwarmManager(
-        VLLMModelDiscovery(vllm_url, api_key=os.getenv("LLM_API_KEY", "")),
-        AgentTeamAPIClient(
-            api_url,
-            api_token=os.getenv("AGENT_TEAM_API_TOKEN", ""),
-        ),
+        discovery,
+        api,
         SwarmConfigReconciler(source_config, source_runfile, live_runfile),
         S6ServiceController(service_dir=service_dir),
+        effective_models=current_effective_models(),
+        effective_models_provider=current_effective_models,
     )
 
 
@@ -75,6 +117,47 @@ def build_swarm_manager() -> SwarmManager:
 def cli():
     """Agent Team Runtime CLI."""
     pass
+
+
+@cli.command("serve")
+@click.option("--host", envvar="AGENT_TEAM_HOST", default="localhost", show_default=True)
+@click.option("--port", envvar="AGENT_TEAM_PORT", default=8080, type=click.IntRange(1, 65535))
+@click.option("--config", "config_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+def serve(host: str, port: int, config_file: Path | None):
+    """Run the HTTP runtime in the foreground."""
+    import uvicorn
+
+    previous_config = os.environ.get("AGENT_TEAM_CONFIG_FILE")
+    try:
+        if config_file is not None:
+            os.environ["AGENT_TEAM_CONFIG_FILE"] = str(config_file.resolve())
+        uvicorn.run("agent_team.app:app", host=host, port=port)
+    finally:
+        if config_file is not None:
+            if previous_config is None:
+                os.environ.pop("AGENT_TEAM_CONFIG_FILE", None)
+            else:
+                os.environ["AGENT_TEAM_CONFIG_FILE"] = previous_config
+
+
+@cli.command("doctor")
+@click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON.")
+def doctor(as_json: bool):
+    """Inspect core runtime configuration and readiness without mutation."""
+    try:
+        status = build_swarm_manager(supervisor="none").inspect()
+    except Exception as exc:
+        raise click.ClickException(str(exc)) from exc
+    if as_json:
+        click.echo(status.model_dump_json(indent=2))
+    else:
+        click.echo(f"expected model: {status.expected_model}")
+        click.echo(f"health ready: {status.health_ok}")
+        click.echo(f"API ready: {status.ready_ok}")
+        for item in status.drift:
+            click.echo(f"  - {item}")
+    if not status.synchronized:
+        raise click.exceptions.Exit(1)
 
 
 @cli.group()
@@ -87,7 +170,7 @@ def swarm():
 def swarm_detect():
     """Print the single model advertised by vLLM."""
     try:
-        click.echo(build_swarm_manager().discovery.detect_model())
+        click.echo(build_model_discovery().detect_model())
     except Exception as exc:
         raise click.ClickException(str(exc)) from exc
 
@@ -107,6 +190,7 @@ def swarm_status(as_json: bool):
         click.echo(f"expected model: {status.expected_model}")
         click.echo(f"vLLM models: {', '.join(status.advertised_models) or '(none)'}")
         click.echo(f"Python config: {status.config_model}")
+        click.echo(f"supervisor: {status.supervisor_state}")
         click.echo(f"source runfile: {status.source_model}")
         click.echo(f"live runfile: {status.live_model}")
         click.echo(f"health ready: {status.health_ok}")
@@ -152,6 +236,7 @@ def swarm_reconcile(
         click.echo(f"changed files: {len(result.changed_files)}")
         click.echo(f"restarted: {result.restarted}")
         click.echo(f"verified: {result.verified}")
+        click.echo(f"pending restart: {result.pending_restart}")
         if result.status.drift:
             click.echo("drift:")
             for item in result.status.drift:
@@ -626,45 +711,15 @@ def init():
 
     config_file = config.runtime.state_dir / "config" / "config.yaml"
     if not config_file.exists():
-        config_content = """# Agent Team Configuration
-runtime:
-  state_dir: ~/.agent-team
-  max_workers: 6
-  max_concurrent_workers: 3
-  nesting_depth: 0
-
-models:
-  principal:
-    model: ${PRINCIPAL_MODEL}
-    base_url: ${PRINCIPAL_BASE_URL:-${LLM_BASE_URL}}
-  manager:
-    model: ${MANAGER_MODEL}
-    base_url: ${MANAGER_BASE_URL:-${LLM_BASE_URL}}
-  worker:
-    model: ${WORKER_MODEL}
-    base_url: ${WORKER_BASE_URL:-${LLM_BASE_URL}}
-  curator:
-    model: ${CURATOR_MODEL:-${WORKER_MODEL}}
-    base_url: ${CURATOR_BASE_URL:-${LLM_BASE_URL}}
-
-memory:
-  enabled: true
-  shared_knowledge: true
-  curator_enabled: false
-
-tools:
-  skills: false
-  mcp: false
-
-retention:
-  max_session_messages: 200
-  session_max_age_days: null
-  project_max_age_days: null
-  knowledge_max_age_days: null
-  memory_max_age_days: null
-  log_max_bytes: null
-  log_backup_count: 5
-"""
+        content = config.model_dump(mode="json")
+        for role, values in content["models"].items():
+            prefix = role.upper()
+            model = values["model"] or ""
+            endpoint = values["base_url"] or "http://model-service:8000/v1"
+            model_default = f"${{WORKER_MODEL:-{model}}}" if role == "curator" else model
+            values["model"] = f"${{{prefix}_MODEL:-{model_default}}}"
+            values["base_url"] = f"${{{prefix}_BASE_URL:-${{LLM_BASE_URL:-{endpoint}}}}}"
+        config_content = "# Agent Team Configuration\n" + yaml.safe_dump(content, sort_keys=False)
         config_file.write_text(config_content)
         click.echo(f"Created default config: {config_file}")
 

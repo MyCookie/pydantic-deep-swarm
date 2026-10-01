@@ -14,7 +14,38 @@ these separately:
 Use the portable variable list in [`.env.example`](../.env.example). Keep actual
 values in an ignored environment file or inject them through the supervisor.
 
-## Required deployment paths
+## Core startup and optional supervision
+
+Core startup requires Python and runtime/model configuration, without s6:
+
+```sh
+agent-team init
+agent-team serve --host localhost --port 8080
+agent-team doctor --json
+agent-team swarm detect
+agent-team swarm status --json
+```
+
+`doctor` checks the running HTTP service and model/configuration state, so a
+stopped service or unavailable model endpoint produces a diagnostic failure.
+The existing `bootstrap` workflow remains a supervised deployment gate.
+
+Set `AGENT_TEAM_SUPERVISOR=none` to disable the optional adapter even when legacy
+service variables are inherited. Set it to `s6` to require the adapter. When unset,
+only a nonempty `AGENT_TEAM_SERVICE_DIR` opts into s6 compatibility. Installed
+executables alone do not opt in. In core mode, supervisor state is
+`not_configured`, runfile fields are null, and missing s6 does not produce drift.
+Selected but unusable supervision is `unavailable` and fails status.
+
+Optional templates stay in `s6-service/`; deployment tooling installs live copies
+outside the checkout. `swarm reconcile` requires s6 selection even for dry runs.
+Dry runs report planned changes without verification. Restarting reconciliation
+preflights supervision before writes; `--no-restart` retains file-only updates
+and reports `pending_restart` when files changed. Changing fallback defaults
+does not override YAML or process environment; those must match the requested
+model before runtime verification can succeed.
+
+## Optional s6 deployment paths
 
 Deployment-specific paths are never guessed by the runtime:
 
@@ -26,10 +57,12 @@ Deployment-specific paths are never guessed by the runtime:
 | `AGENT_TEAM_HOME` | Service user's home |
 | `AGENT_TEAM_STATE_DIR` | External mutable runtime state |
 | `AGENT_TEAM_SERVICE_DIR` | Live supervised service directory |
+| `AGENT_TEAM_SUPERVISOR` | Explicit `none` or `s6`; overrides legacy selection |
 | `AGENT_TEAM_LIVE_RUNFILE` | Live runfile; defaults to `$AGENT_TEAM_SERVICE_DIR/run` |
 | `AGENT_TEAM_SERVICE_DEFINITION` | Service definition used by operator commands |
 | `AGENT_TEAM_LOG_PATH` | External service log |
 | `AGENT_TEAM_S6_SVC` | `s6-svc` command name or injected executable path |
+| `AGENT_TEAM_S6_SVSTAT` | `s6-svstat` command name or injected executable path |
 | `AGENT_TEAM_S6_SETUIDGID` | `s6-setuidgid` command name or injected executable path |
 
 The s6 templates resolve `with-contenv`, `s6-svc`, and `s6-setuidgid` through

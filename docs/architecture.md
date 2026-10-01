@@ -90,7 +90,8 @@ not per-session or multi-tenant authorization.
 
 ## Runtime process model
 
-The supported model is one supervised Agent Team process per state directory.
+The supported model is one Agent Team process per state directory, started
+directly or through an optional supervisor.
 Startup acquires a nonblocking operating-system lease at
 `<state_dir>/runtime.lock`. A second process fails closed instead of sharing
 in-memory registries, process ownership, or cancellation state.
@@ -98,6 +99,27 @@ in-memory registries, process ownership, or cancellation state.
 Durable sessions survive restart. Live tasks do not: startup converts stale
 `processing` sessions to `blocked` with a restart error. This keeps recovery
 honest and avoids fabricated completion.
+
+## Optional s6 boundary
+
+Core `init`, `serve`, `doctor`, model discovery, and swarm status use loaded
+configuration and HTTP state without requiring s6 assets or environment variables.
+`s6-service/` remains the canonical location for optional deployment templates;
+installed live copies belong to the deployment, outside the checkout.
+
+The s6 controller, source/runfile reconciliation, and supervised `bootstrap`
+workflow remain compatibility surfaces. `AGENT_TEAM_SUPERVISOR=none|s6` selects
+the adapter explicitly. Without that setting, a nonempty
+`AGENT_TEAM_SERVICE_DIR` selects legacy s6 mode; otherwise supervision is
+`not_configured`. Finding s6 executables never selects the adapter. Explicit
+`none` overrides inherited service settings.
+
+Missing optional supervision is not drift. Selected but unavailable supervision
+is a visible failure. Core status compares effective role models and the API;
+only the s6 compatibility profile also compares source defaults and runfiles.
+Reconciliation requires that profile, and checks requested restart capability
+before writing. Dry runs never restart or claim verification. File-only updates
+report a pending restart, and successful verification requires runtime convergence.
 
 ## Scheduling and lifecycle
 

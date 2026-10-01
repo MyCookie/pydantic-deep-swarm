@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from .api import AgentTeamAPIClient
 from .configuration import SwarmConfigReconciler, extract_config_model, extract_runfile_model
 from .discovery import VLLMModelDiscovery
+from .service import ServiceControlError
 
 
 ROLES = ("principal", "manager", "worker", "curator")
@@ -32,6 +33,9 @@ class SwarmStatus(BaseModel):
     health_ok: bool = False
     ready_ok: bool = False
     drift: list[str] = Field(default_factory=list)
+    effective_models: dict[str, str] = Field(default_factory=dict)
+    supervisor_state: str = "not_configured"
+    supervisor_detail: str | None = None
 
     @property
     def synchronized(self) -> bool:
@@ -45,6 +49,7 @@ class SwarmReconcileResult(BaseModel):
     changed_files: list[str] = Field(default_factory=list)
     restarted: bool = False
     verified: bool = False
+    pending_restart: bool = False
     status: SwarmStatus
 
 
@@ -55,9 +60,11 @@ class SwarmManager:
         self,
         discovery: VLLMModelDiscovery,
         api: AgentTeamAPIClient,
-        config: SwarmConfigReconciler,
-        service: Restartable,
+        config: SwarmConfigReconciler | None = None,
+        service: Restartable | None = None,
         *,
+        effective_models: dict[str, str] | None = None,
+        effective_models_provider: Callable[[], dict[str, str]] | None = None,
         verification_attempts: int = 20,
         verification_interval: float = 0.25,
         sleep: Callable[[float], None] = time.sleep,
@@ -70,6 +77,8 @@ class SwarmManager:
         self.api = api
         self.config = config
         self.service = service
+        self.effective_models = effective_models
+        self.effective_models_provider = effective_models_provider
         self.verification_attempts = verification_attempts
         self.verification_interval = verification_interval
         self.sleep = sleep
@@ -85,19 +94,28 @@ class SwarmManager:
         advertised = self.discovery.list_models()
         expected = expected_model or self.discovery.require_single(advertised)
         drift: list[str] = []
+        effective_models = (
+            self.effective_models_provider()
+            if self.effective_models_provider is not None
+            else self.effective_models
+        )
 
         config_model = self._read_model(
             self.config.source_config_path,
             extract_config_model,
-        )
+        ) if self.config else None
         source_model = self._read_model(
             self.config.source_runfile_path,
             extract_runfile_model,
-        )
+        ) if self.config else None
         live_model = self._read_model(
             self.config.live_runfile_path,
             extract_runfile_model,
-        )
+        ) if self.config else None
+
+        supervisor_state, supervisor_detail = self.supervisor_status()
+        if supervisor_state == "unavailable":
+            drift.append(f"s6 supervisor unavailable: {supervisor_detail}")
 
         if advertised != [expected]:
             drift.append(f"vLLM advertises {advertised!r}; expected [{expected!r}]")
@@ -106,8 +124,13 @@ class SwarmManager:
             ("source runfile", source_model),
             ("live runfile", live_model),
         ):
-            if value != expected:
+            if self.config and value != expected:
                 drift.append(f"{label} has {value!r}; expected {expected!r}")
+        if self.config is None or effective_models is not None:
+            for role in ROLES:
+                value = (effective_models or {}).get(role)
+                if value != expected:
+                    drift.append(f"effective role {role} has {value!r}; expected {expected!r}")
 
         api_models: dict[str, str | None] = {}
         try:
@@ -154,7 +177,21 @@ class SwarmManager:
             health_ok=health_ok,
             ready_ok=ready_ok,
             drift=drift,
+            effective_models=effective_models or {},
+            supervisor_state=supervisor_state,
+            supervisor_detail=supervisor_detail,
         )
+
+    def supervisor_status(self) -> tuple[str, str | None]:
+        if self.service is None:
+            return "not_configured", None
+        preflight = getattr(self.service, "preflight", None)
+        try:
+            if preflight:
+                preflight()
+        except ServiceControlError as exc:
+            return "unavailable", str(exc)
+        return "available", None
 
     def _wait_for_convergence(self, expected_model: str) -> SwarmStatus:
         """Poll until the restarted API reflects the reconciled model."""
@@ -176,6 +213,8 @@ class SwarmManager:
         verify: bool = True,
         dry_run: bool = False,
     ) -> SwarmReconcileResult:
+        if self.config is None or self.service is None:
+            raise ServiceControlError("reconcile requires the optional s6 adapter and managed configuration")
         advertised = self.discovery.list_models()
         target = model or self.discovery.require_single(advertised)
         if target not in advertised:
@@ -184,6 +223,10 @@ class SwarmManager:
             )
 
         before = self.inspect(expected_model=target)
+        if not dry_run and restart:
+            preflight = getattr(self.service, "preflight", None)
+            if preflight:
+                preflight()
         changed_files = self.config.apply(target, dry_run=dry_run)
         restarted = False
         if not dry_run and restart and (changed_files or not before.synchronized):
@@ -197,10 +240,12 @@ class SwarmManager:
             if verify and not dry_run
             else before
         )
+        pending_restart = bool(not dry_run and not restart and (changed_files or not before.synchronized))
         return SwarmReconcileResult(
             model=target,
             changed_files=changed_files,
             restarted=restarted,
-            verified=status.synchronized if verify and not dry_run else False,
+            verified=status.synchronized if verify and not dry_run and not pending_restart else False,
+            pending_restart=pending_restart,
             status=status,
         )

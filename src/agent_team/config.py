@@ -75,7 +75,7 @@ class Config(BaseModel):
     retention: RetentionConfig = Field(default_factory=RetentionConfig)
 
     @classmethod
-    def from_env(cls, env_prefix: str = "") -> "Config":
+    def from_env(cls, env_prefix: str = "", *, fallback_model: str | None = None) -> "Config":
         """Load the YAML configuration when present, otherwise use environment defaults.
 
         Environment variables remain a bootstrap fallback for installations without
@@ -113,6 +113,8 @@ class Config(BaseModel):
 
         base_url = os.getenv(f"{env_prefix}LLM_BASE_URL", "http://model-service:8000/v1")
         model_name = os.getenv(f"{env_prefix}LLM_MODEL", "nvidia/Qwen3.8-27B-NVFP4")
+        if fallback_model is not None and os.getenv(f"{env_prefix}LLM_MODEL") is None:
+            model_name = fallback_model
         principal_model = os.getenv(f"{env_prefix}PRINCIPAL_MODEL", model_name)
         manager_model = os.getenv(f"{env_prefix}MANAGER_MODEL", model_name)
         worker_model = os.getenv(f"{env_prefix}WORKER_MODEL", model_name)
@@ -138,12 +140,12 @@ class Config(BaseModel):
         return cls(**cls._expand_env_vars(data))
 
     @classmethod
-    def load(cls, path: Path | str | None = None) -> "Config":
+    def load(cls, path: Path | str | None = None, *, fallback_model: str | None = None) -> "Config":
         """Canonical startup loader used by the HTTP service."""
         if path is not None:
             candidate = Path(path).expanduser()
-            return cls.from_file(candidate) if candidate.exists() else cls.from_env()
-        return cls.from_env()
+            return cls.from_file(candidate) if candidate.exists() else cls.from_env(fallback_model=fallback_model)
+        return cls.from_env(fallback_model=fallback_model)
 
     @classmethod
     def _expand_env_string(
@@ -238,6 +240,6 @@ class Config(BaseModel):
         return data
 
 
-def get_config(config_path: str | None = None) -> Config:
+def get_config(config_path: str | None = None, *, fallback_model: str | None = None) -> Config:
     """Return the canonical YAML-first configuration."""
-    return Config.load(config_path)
+    return Config.load(config_path, fallback_model=fallback_model)

@@ -19,6 +19,7 @@ from datetime import datetime
 from typing import Any, Iterable
 
 from .config import Config
+from .control.discovery import OpenAIModelDiscovery
 from .artifacts import ArtifactStore
 from .contracts import (
     AcceptanceResult,
@@ -115,6 +116,7 @@ class AgentTeamEngine:
         config.runtime.state_dir = state_dir
         config.runtime.workspace_dir = workspace_dir
 
+        self._discovered_models: dict[str, str] = {}
         self.principal_model = self._create_model(config.models.get("principal"))
         self.manager_model = self._create_model(config.models.get("manager"))
         self.worker_model = self._create_model(config.models.get("worker"))
@@ -180,15 +182,28 @@ class AgentTeamEngine:
         self._closed = False
 
     def _create_model(self, model_config) -> Any:
-        """Create the local OpenAI-compatible model wrapper."""
+        """Create a model wrapper, discovering a sole advertised model when requested."""
         if not model_config:
             raise ValueError("Model config required")
         from .models.http_model import create_simple_model
 
+        base_url = model_config.base_url or os.getenv("LLM_BASE_URL", "http://model-service:8000/v1")
+        canonical_base_url = base_url.rstrip("/")
+        api_key = os.getenv("LLM_API_KEY", "")
+        model_name = model_config.model or os.getenv("LLM_MODEL", "auto")
+        if model_name == "auto":
+            if canonical_base_url not in self._discovered_models:
+                self._discovered_models[canonical_base_url] = OpenAIModelDiscovery(
+                    canonical_base_url,
+                    api_key=api_key,
+                ).detect_model()
+            model_name = self._discovered_models[canonical_base_url]
+            model_config.model = model_name
+
         return create_simple_model(
-            base_url=model_config.base_url or os.getenv("LLM_BASE_URL", "http://model-service:8000/v1"),
-            model_name=model_config.model or os.getenv("LLM_MODEL", "nvidia/Qwen3.8-27B-NVFP4"),
-            api_key=os.getenv("LLM_API_KEY", ""),
+            base_url=base_url,
+            model_name=model_name,
+            api_key=api_key,
         )
 
     async def run(self, user_input: str, session_id: str | None = None) -> CompletionReport:

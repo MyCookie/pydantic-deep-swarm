@@ -41,9 +41,12 @@ Optional templates stay in `s6-service/`; deployment tooling installs live copie
 outside the checkout. `swarm reconcile` requires s6 selection even for dry runs.
 Dry runs report planned changes without verification. Restarting reconciliation
 preflights supervision before writes; `--no-restart` retains file-only updates
-and reports `pending_restart` when files changed. Changing fallback defaults
-does not override YAML or process environment; those must match the requested
-model before runtime verification can succeed.
+and reports `pending_restart` when files changed or activation remains unverified.
+Live-runfile selection does not override authoritative YAML; desired configuration
+and the observed API must agree before runtime verification can succeed. Core
+status resolves `auto` without writing it. The compatibility control plane
+currently requires one common model endpoint; distinct explicit role models on
+that endpoint are checked against their own configured selections.
 
 ## Optional s6 deployment paths
 
@@ -75,12 +78,17 @@ Environment fallback configuration uses:
 ```sh
 export LLM_BASE_URL="${LLM_BASE_URL:?set the OpenAI-compatible base URL}"
 export LLM_API_KEY=""  # leave empty for an unauthenticated local endpoint
-export LLM_MODEL="${LLM_MODEL:?set the advertised model ID}"
+export LLM_MODEL="${LLM_MODEL:-auto}"  # discovers the sole advertised model
 export PRINCIPAL_MODEL="${PRINCIPAL_MODEL:-$LLM_MODEL}"
 export MANAGER_MODEL="${MANAGER_MODEL:-$LLM_MODEL}"
 export WORKER_MODEL="${WORKER_MODEL:-$LLM_MODEL}"
 export CURATOR_MODEL="${CURATOR_MODEL:-$WORKER_MODEL}"
 ```
+
+`LLM_MODEL=auto` queries the standard `GET /models` endpoint and selects the
+model only when exactly one ID is advertised. Configure an explicit ID when the
+endpoint advertises multiple models; the runtime fails closed rather than
+guessing between them.
 
 A YAML configuration at `$AGENT_TEAM_STATE_DIR/config/config.yaml` becomes
 authoritative when present. The loader supports a bounded substitution grammar:
@@ -155,13 +163,14 @@ export AGENT_TEAM_API_TOKEN=""  # empty/unset keeps anonymous local mode
 When nonempty, every Agent Team route—including `/health`, `/ready`, `/models`,
 OpenAPI, and documentation—is protected by Bearer authentication. Bootstrap,
 swarm control, `agent-team status`, `agent-team cancel`, live E2E tests, and the
-Hermes delegation plugin read the same variable automatically. Keep it separate
-from `LLM_API_KEY`, which is sent only to the model endpoint.
+optional delegation adapter read the same variable automatically. Keep it
+separate from `LLM_API_KEY`, which is sent only to the model endpoint.
 
 The first-party plugin source is versioned under
 `integrations/hermes/principal-agent-team/`. Install or update that directory
-explicitly from the same trusted Agent Team revision before restarting Hermes;
-the acceptance tests load this repository copy rather than host-local state.
+explicitly from the same trusted Agent Team revision before restarting the host
+gateway; the acceptance tests load this repository copy rather than host-local
+state.
 
 For a direct request in authenticated mode:
 
@@ -276,6 +285,10 @@ request.
 
 ## Swarm control plane
 
+The commands below describe current implementation. The planned replacement is
+the [owned model-selection contract](model-selection-contract.md); its YAML-only
+reconciliation and optional supervisor behavior require the subsequent build.
+
 With live service paths configured:
 
 ```sh
@@ -284,9 +297,11 @@ agent-team swarm status --json
 agent-team swarm reconcile --dry-run --json
 ```
 
-A non-dry-run reconcile updates managed model defaults/runfiles, restarts through
-s6, and verifies convergence. It is an operational mutation and should be run
-only with the intended live paths and privileges.
+A non-dry-run reconcile updates only the live deployment runfile, never tracked
+source defaults. Auto mode pins the live selection to `auto`; `--model` pins the
+chosen advertised ID. The command then restarts through s6 and verifies
+convergence. It is an operational mutation and should be run only with the
+intended live paths and privileges.
 
 ## Pi assets and release operations
 

@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from .api import AgentTeamAPIClient
 from .configuration import SwarmConfigReconciler, extract_config_model, extract_runfile_model
-from .discovery import VLLMModelDiscovery
+from .discovery import OpenAIModelDiscovery
 from .service import ServiceControlError
 
 
@@ -22,7 +22,7 @@ class Restartable(Protocol):
 
 
 class SwarmStatus(BaseModel):
-    """Comparable state across vLLM, source, live s6, and Agent Team API."""
+    """Comparable state across the model endpoint, deployment, and Agent Team API."""
 
     expected_model: str
     advertised_models: list[str] = Field(default_factory=list)
@@ -58,7 +58,7 @@ class SwarmManager:
 
     def __init__(
         self,
-        discovery: VLLMModelDiscovery,
+        discovery: OpenAIModelDiscovery,
         api: AgentTeamAPIClient,
         config: SwarmConfigReconciler | None = None,
         service: Restartable | None = None,
@@ -92,7 +92,6 @@ class SwarmManager:
 
     def inspect(self, *, expected_model: str | None = None) -> SwarmStatus:
         advertised = self.discovery.list_models()
-        expected = expected_model or self.discovery.require_single(advertised)
         drift: list[str] = []
         effective_models = (
             self.effective_models_provider()
@@ -117,24 +116,10 @@ class SwarmManager:
         if supervisor_state == "unavailable":
             drift.append(f"s6 supervisor unavailable: {supervisor_detail}")
 
-        if advertised != [expected]:
-            drift.append(f"vLLM advertises {advertised!r}; expected [{expected!r}]")
-        for label, value in (
-            ("Python config", config_model),
-            ("source runfile", source_model),
-            ("live runfile", live_model),
-        ):
-            if self.config and value != expected:
-                drift.append(f"{label} has {value!r}; expected {expected!r}")
-        if self.config is None or effective_models is not None:
-            for role in ROLES:
-                value = (effective_models or {}).get(role)
-                if value != expected:
-                    drift.append(f"effective role {role} has {value!r}; expected {expected!r}")
-
+        raw_models: dict[str, Any] = {}
         api_models: dict[str, str | None] = {}
         try:
-            raw_models: dict[str, Any] = self.api.models()
+            raw_models = self.api.models()
             api_models = {
                 role: (
                     raw_models.get(role, {}).get("model")
@@ -145,9 +130,60 @@ class SwarmManager:
             }
         except Exception as exc:
             drift.append(f"Agent Team /models unavailable: {exc}")
+
+        live_selection = live_model if live_model not in {None, "auto"} else None
+        principal_selection = api_models.get("principal")
+        expected = (
+            expected_model
+            or live_selection
+            or principal_selection
+            or self.discovery.require_single(advertised)
+        )
+        resolved_models: dict[str, str] = {}
+        if self.config is None or effective_models is not None:
+            for role in ROLES:
+                selection = (effective_models or {}).get(role)
+                if selection is None:
+                    drift.append(f"effective role {role} has no configured model")
+                    continue
+                desired = self.discovery.require_single(advertised) if selection in {"auto", ""} else selection
+                resolved_models[role] = desired
+                if desired not in advertised:
+                    drift.append(f"effective role {role} has {desired!r}, which the endpoint does not advertise")
+                if expected_model is not None and desired != expected_model:
+                    drift.append(f"effective role {role} has {desired!r}; expected {expected_model!r}")
+        if expected_model is not None or live_selection is not None or len(advertised) == 1:
+            if expected not in advertised:
+                drift.append(
+                    f"model endpoint advertises {advertised!r}; expected {expected!r}"
+                )
+
+        for label, value in (
+            ("Python config", config_model),
+            ("source runfile", source_model),
+            ("live runfile", live_model),
+        ):
+            if self.config and value not in {expected, "auto"}:
+                drift.append(f"{label} has {value!r}; expected {expected!r} or 'auto'")
+
+        discovery_base_url = getattr(self.discovery, "base_url", "").rstrip("/")
         for role, value in api_models.items():
-            if value != expected:
-                drift.append(f"API role {role} has {value!r}; expected {expected!r}")
+            detail = raw_models.get(role, {})
+            role_base_url = (
+                str(detail.get("base_url") or "").rstrip("/")
+                if isinstance(detail, dict)
+                else ""
+            )
+            if not value:
+                drift.append(f"API role {role} has no configured model")
+            elif role in resolved_models and value != resolved_models[role]:
+                drift.append(f"API role {role} has {value!r}; expected {resolved_models[role]!r}")
+            elif expected_model is not None and value != expected_model:
+                drift.append(f"API role {role} has {value!r}; expected {expected_model!r}")
+            elif role_base_url == discovery_base_url and value not in advertised:
+                drift.append(
+                    f"API role {role} has {value!r}, which the endpoint does not advertise"
+                )
 
         health_ok = False
         try:
@@ -177,7 +213,7 @@ class SwarmManager:
             health_ok=health_ok,
             ready_ok=ready_ok,
             drift=drift,
-            effective_models=effective_models or {},
+            effective_models=resolved_models,
             supervisor_state=supervisor_state,
             supervisor_detail=supervisor_detail,
         )
@@ -219,7 +255,7 @@ class SwarmManager:
         target = model or self.discovery.require_single(advertised)
         if target not in advertised:
             raise ValueError(
-                f"requested model {target!r} is not advertised by vLLM: {advertised!r}"
+                f"requested model {target!r} is not advertised by the endpoint: {advertised!r}"
             )
 
         before = self.inspect(expected_model=target)
@@ -227,7 +263,8 @@ class SwarmManager:
             preflight = getattr(self.service, "preflight", None)
             if preflight:
                 preflight()
-        changed_files = self.config.apply(target, dry_run=dry_run)
+        live_selection = target if model is not None else "auto"
+        changed_files = self.config.apply(live_selection, dry_run=dry_run)
         restarted = False
         if not dry_run and restart and (changed_files or not before.synchronized):
             self.service.restart()

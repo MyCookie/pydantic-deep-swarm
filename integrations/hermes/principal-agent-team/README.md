@@ -1,8 +1,9 @@
-# Hermes Principal integration
+# Hermes integration adapter
 
-This first-party Hermes plugin registers the session-aware
-`delegate_to_agent_team` tool. It keeps Hermes's normal AIAgent as the
-user-facing Principal and sends typed briefs directly to Agent Team.
+This optional first-party plugin registers the session-aware
+`delegate_to_agent_team` tool and translates an authored brief plus caller
+session context into the Agent Team HTTP contract. Agent Team does not depend on
+the caller's identity or user-facing routing model.
 
 Install or update it explicitly from a trusted Agent Team revision:
 
@@ -17,6 +18,15 @@ Set `AGENT_TEAM_URL` only when the service is not available at the documented
 loopback default. If optional Agent Team HTTP authentication is enabled, the
 gateway process must receive `AGENT_TEAM_API_TOKEN`; the plugin forwards that
 control credential without serializing it into plugin configuration.
+
+Agent Team workers deliberately have no terminal or Hermes-native tool bridge.
+When delegated work needs GitHub data or actions, the adapter tells the Hermes
+Principal to execute `gh` before or after delegation and pass the resulting data
+through `relevant_context`. The adapter resolves `gh` from `PATH` or
+`HOMEBREW_PREFIX`, so a Homebrew-installed CLI
+continues to work when Hermes's persistent login-shell snapshot omits Homebrew
+from `PATH`. Set plugin option `github_cli_path` only when auto-detection cannot
+find the executable.
 
 This plugin is part of the AGPL-3.0-only Agent Team runtime; see the repository
 root `LICENSE`.

@@ -50,7 +50,7 @@ class SimpleChatModel:
         """Send chat completion request and parse response as structured output."""
         # OpenAI-compatible chat templates generally allow only one system message.
         # Merge the schema instruction into an existing system prompt instead of
-        # prepending a second system message, which vLLM/Qwen rejects with 400.
+        # prepending a second system message, which some compatible servers reject.
         schema_instruction = f"Respond only with valid JSON matching this schema: {output_schema.model_json_schema()}"
         formatted_messages = list(messages)
         if formatted_messages and formatted_messages[0].get("role") == "system":

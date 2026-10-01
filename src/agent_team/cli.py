@@ -16,10 +16,10 @@ from .control import (
     S6ServiceController,
     SwarmConfigReconciler,
     SwarmManager,
-    VLLMModelDiscovery,
+    OpenAIModelDiscovery,
 )
 from .observability import get_logger
-from .control.configuration import extract_config_model
+from .control.configuration import extract_runfile_model
 from .pi_reconciler import PiAssetReconciler, PiReconcileError
 from .provenance import (
     AssetProvenance,
@@ -36,14 +36,14 @@ def _project_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def build_model_discovery() -> VLLMModelDiscovery:
+def build_model_discovery() -> OpenAIModelDiscovery:
     """Build discovery independently of supervisor configuration."""
     effective = get_config()
     fallback = os.getenv("LLM_BASE_URL", "http://model-service:8000/v1")
     endpoints = {model.base_url or fallback for model in effective.models.values()} or {fallback}
     if len(endpoints) != 1:
         raise ValueError("swarm control requires a single model endpoint shared by all roles")
-    return VLLMModelDiscovery(
+    return OpenAIModelDiscovery(
         endpoints.pop(),
         api_key=os.getenv("LLM_API_KEY", ""),
     )
@@ -66,7 +66,7 @@ def build_swarm_manager(*, supervisor: str | None = None) -> SwarmManager:
     discovery = build_model_discovery()
     effective = get_config()
     effective_models = {
-        role: model.model or os.getenv("LLM_MODEL", "nvidia/Qwen3.8-27B-NVFP4")
+        role: model.model or os.getenv("LLM_MODEL", "auto")
         for role, model in effective.models.items()
     }
     api = AgentTeamAPIClient(api_url, api_token=os.getenv("AGENT_TEAM_API_TOKEN", ""))
@@ -93,12 +93,13 @@ def build_swarm_manager(*, supervisor: str | None = None) -> SwarmManager:
     )
 
     def current_effective_models() -> dict[str, str]:
-        fallback_model = extract_config_model(source_config.read_text(encoding="utf-8"))
-        if fallback_model is None:
-            raise ValueError(f"cannot extract LLM_MODEL default from {source_config}")
+        try:
+            fallback_model = extract_runfile_model(live_runfile.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError):
+            fallback_model = None
         current = get_config(fallback_model=fallback_model)
         return {
-            role: model.model or os.getenv("LLM_MODEL", "nvidia/Qwen3.8-27B-NVFP4")
+            role: model.model or os.getenv("LLM_MODEL", "auto")
             for role, model in current.models.items()
         }
 
@@ -168,7 +169,7 @@ def swarm():
 
 @swarm.command("detect")
 def swarm_detect():
-    """Print the single model advertised by vLLM."""
+    """Print the single model advertised by the configured endpoint."""
     try:
         click.echo(build_model_discovery().detect_model())
     except Exception as exc:
@@ -178,7 +179,7 @@ def swarm_detect():
 @swarm.command("status")
 @click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON.")
 def swarm_status(as_json: bool):
-    """Inspect model drift across vLLM, source, live s6, and the API."""
+    """Inspect model drift across the endpoint, deployment, and API."""
     try:
         status = build_swarm_manager().inspect()
     except Exception as exc:
@@ -188,7 +189,7 @@ def swarm_status(as_json: bool):
         click.echo(status.model_dump_json(indent=2))
     else:
         click.echo(f"expected model: {status.expected_model}")
-        click.echo(f"vLLM models: {', '.join(status.advertised_models) or '(none)'}")
+        click.echo(f"endpoint models: {', '.join(status.advertised_models) or '(none)'}")
         click.echo(f"Python config: {status.config_model}")
         click.echo(f"supervisor: {status.supervisor_state}")
         click.echo(f"source runfile: {status.source_model}")
@@ -206,7 +207,7 @@ def swarm_status(as_json: bool):
 
 
 @swarm.command("reconcile")
-@click.option("--model", default=None, help="Explicit model; defaults to vLLM auto-detection.")
+@click.option("--model", default=None, help="Explicit model; defaults to endpoint auto-detection.")
 @click.option("--dry-run", is_flag=True, help="Plan changes without writing or restarting.")
 @click.option("--no-restart", is_flag=True, help="Do not restart the supervised service.")
 @click.option("--no-verify", is_flag=True, help="Skip post-restart verification.")
@@ -725,7 +726,7 @@ def init():
 
     click.echo("\nInitialization complete!")
     click.echo("\nSet environment variables:")
-    click.echo("  export LLM_BASE_URL=${LLM_BASE_URL:?set LLM_BASE_URL to the vLLM URL}")
+    click.echo("  export LLM_BASE_URL=${LLM_BASE_URL:?set LLM_BASE_URL to the OpenAI-compatible URL}")
     click.echo('  export LLM_API_KEY=""  # optional; only needed if the model service requires auth')
     click.echo('  export AGENT_TEAM_API_TOKEN=""  # optional; enables Agent Team HTTP Bearer auth')
     click.echo("  export PRINCIPAL_MODEL=model-name")

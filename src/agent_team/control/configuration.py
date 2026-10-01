@@ -75,7 +75,7 @@ def _atomic_write(path: Path, content: str) -> None:
 
 
 class SwarmConfigReconciler:
-    """Reconcile Python defaults and both s6 runfile copies as one operation."""
+    """Reconcile only live deployment model selection; keep source generic."""
 
     def __init__(
         self,
@@ -89,19 +89,22 @@ class SwarmConfigReconciler:
 
     @staticmethod
     def render_runfile(text: str, model: str) -> str:
+        """Pin the live runfile selection so inherited environment cannot override it."""
         model = _validate_model(model)
-        replacement = lambda match: (
-            f'{match.group("prefix")}{model}{match.group("suffix")}'
+        assignment = re.compile(
+            r"^(?:export\s+)?LLM_MODEL\s*=.*$",
+            flags=re.MULTILINE,
         )
-        updated, count = _RUNFILE_MODEL_RE.subn(replacement, text, count=1)
+        line = f'export LLM_MODEL="{model}"'
+        updated, count = assignment.subn(line, text, count=1)
         if count:
             return updated
 
-        line = f'export LLM_MODEL="${{LLM_MODEL:-{model}}}"\n'
         exec_match = re.search(r"^exec\s+", text, flags=re.MULTILINE)
+        insertion = line + "\n"
         if exec_match:
-            return text[: exec_match.start()] + line + text[exec_match.start() :]
-        return text.rstrip() + "\n" + line
+            return text[: exec_match.start()] + insertion + text[exec_match.start() :]
+        return text.rstrip() + "\n" + insertion
 
     @staticmethod
     def render_config_source(text: str, model: str) -> str:
@@ -118,22 +121,11 @@ class SwarmConfigReconciler:
         return updated
 
     def _planned_contents(self, model: str) -> dict[Path, str]:
-        model = _validate_model(model)
-        paths = (
-            self.source_config_path,
-            self.source_runfile_path,
-            self.live_runfile_path,
-        )
-        contents: dict[Path, str] = {}
-        for path in paths:
-            if not path.exists():
-                raise ConfigReconcileError(f"managed file does not exist: {path}")
-            original = path.read_text(encoding="utf-8")
-            if path == self.source_config_path:
-                contents[path] = self.render_config_source(original, model)
-            else:
-                contents[path] = self.render_runfile(original, model)
-        return contents
+        _validate_model(model)
+        path = self.live_runfile_path
+        if not path.exists():
+            raise ConfigReconcileError(f"managed file does not exist: {path}")
+        return {path: self.render_runfile(path.read_text(encoding="utf-8"), model)}
 
     def plan(self, model: str) -> dict[Path, str]:
         """Return only file contents that differ from the requested model."""

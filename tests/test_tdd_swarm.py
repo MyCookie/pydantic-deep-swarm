@@ -223,7 +223,7 @@ class TestGreenConfig:
         config = Config.from_env()
 
         assert config.models["principal"].base_url == "http://model-service:8000/v1"
-        assert config.models["principal"].model == "nvidia/Qwen3.8-27B-NVFP4"
+        assert config.models["principal"].model == "auto"
 
 
 class TestGreenContracts:

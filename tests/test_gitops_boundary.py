@@ -115,7 +115,7 @@ def test_deployment_templates_have_no_instance_specific_values():
         ROOT / "s6-service/agent-team-init/run",
         ROOT / ".env.example",
     ]
-    forbidden = ("/" + "home" + "/user", "host" + ".docker.internal", "nvidia/Qwen3.8-27B-NVFP4")
+    forbidden = ("/" + "home" + "/user", "host" + ".docker.internal")
     text = "\n".join(path.read_text(encoding="utf-8") for path in templates)
     portable_shebang = "#!/" + "usr/bin/env -S with-contenv sh"
     assert templates[0].read_text(encoding="utf-8").startswith(portable_shebang)
@@ -123,13 +123,12 @@ def test_deployment_templates_have_no_instance_specific_values():
     assert not any(value in text for value in forbidden)
     assert "LLM_BASE_URL" in text
     assert "LLM_MODEL" in text
+    assert 'LLM_MODEL="${LLM_MODEL:-auto}"' in text
     assert "AGENT_TEAM_PROJECT_ROOT" in text
     assert "AGENT_TEAM_STATE_DIR" in text
     assert "AGENT_TEAM_VENV" in text
     assert "$project/.venv" not in text
     assert "state directory must be outside project" in text
-
-
 def test_runtime_state_and_workspace_must_be_external():
     with pytest.raises(RuntimeBoundaryError, match="state_dir"):
         ensure_external_runtime_paths(

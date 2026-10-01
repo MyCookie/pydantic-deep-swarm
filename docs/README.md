@@ -7,8 +7,10 @@ architecture, runtime behavior, operations, and testing guidance live here.
 ## Start here
 
 - [End-to-end workflow](end-to-end-workflow.md) — follows a request from the
-  Hermes Principal or HTTP API through planning, workers, verification,
-  persistence, and the final response.
+  external client boundary through planning, workers, verification,
+  persistence, and the response.
+- [ProjectBrief contract](project-brief.md) — field structure, HTTP envelope,
+  validation, planning use, evidence checks, and persistence lifecycle.
 - [Architecture](architecture.md) — components, typed boundaries, trust model,
   process ownership, and durable state.
 - [Operations](operations.md) — configuration, startup, bootstrap, health,
@@ -18,6 +20,14 @@ architecture, runtime behavior, operations, and testing guidance live here.
 - [GitOps runbook](gitops-runbook.md) — exact-revision promotion, Pi asset
   reconciliation, rollback, and operational recovery.
 
+## Planned contracts
+
+- [Foreground serve](foreground-serve-contract.md) — issue #4 startup, readiness,
+  ownership, and shutdown decisions; not implemented runtime behavior.
+
+- [Owned model selection](model-selection-contract.md) — issue #5 decisions and
+  future acceptance gates; not implemented runtime behavior.
+
 ## Colocated specifications
 
 Some documentation remains beside the schema or package it governs so it can be
@@ -26,7 +36,7 @@ validated and distributed with that component:
 - [Pi package](../pi/README.md)
 - [Agent Team delegation skill](../pi/skills/agent-team-delegation/SKILL.md)
 - [Principal handoff template](../pi/prompts/principal-handoff.md)
-- [Hermes Principal plugin](../integrations/hermes/principal-agent-team/README.md)
+- [Optional delegation adapter](../integrations/hermes/principal-agent-team/README.md)
 - [Git provenance schema and policy](../provenance/README.md)
 
 Those files are component specifications, not competing top-level architecture
@@ -34,7 +44,8 @@ or status documents.
 
 ## Source-of-truth order
 
-When prose and behavior disagree, use this order:
+Planned contracts describe future behavior. For current implemented behavior,
+when prose and behavior disagree, use this order:
 
 1. Typed contracts and runtime code under `src/agent_team/`.
 2. Executable acceptance tests under `tests/`.

@@ -57,7 +57,7 @@ export AGENT_TEAM_URL="${AGENT_TEAM_URL:-http://localhost:8080}"
 export AGENT_TEAM_API_TOKEN=""  # set to the service token when HTTP auth is enabled
 export LLM_BASE_URL="${LLM_BASE_URL:?set the live model endpoint}"
 export LLM_API_KEY=""  # set only when the model endpoint requires Bearer auth
-export LLM_MODEL="${LLM_MODEL:?set the live model ID}"
+export LLM_MODEL="${LLM_MODEL:-auto}"  # explicit ID required only when selection is ambiguous
 PYTHONPATH=src .venv/bin/python -m pytest tests/test_e2e.py -v -p no:cacheprovider
 ```
 

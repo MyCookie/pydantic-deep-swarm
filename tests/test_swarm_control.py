@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+from typing import Any
 
 import httpx
 import pytest
@@ -17,21 +18,22 @@ from agent_team.control.configuration import (
     extract_config_model,
     extract_runfile_model,
 )
-from agent_team.control.discovery import ModelDiscoveryError, VLLMModelDiscovery
+from agent_team.control.discovery import ModelDiscoveryError, OpenAIModelDiscovery
 from agent_team.control.manager import SwarmManager, SwarmStatus
 from agent_team.control.service import S6ServiceController, ServiceControlError
 
 
-MODEL = "nvidia/Qwen3.8-27B-NVFP4"
+MODEL = "vendor/example-model"
 OLD_MODEL = "old/model"
 
 
-def mock_transport(state: dict[str, str]):
+def mock_transport(state: dict[str, Any]):
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/v1/models":
+            advertised = state.get("endpoint_models") or [state["endpoint_model"]]
             return httpx.Response(
                 200,
-                json={"object": "list", "data": [{"id": state["vllm_model"]}]},
+                json={"object": "list", "data": [{"id": model} for model in advertised]},
                 request=request,
             )
         if request.url.path == "/health":
@@ -39,11 +41,15 @@ def mock_transport(state: dict[str, str]):
         if request.url.path == "/ready":
             return httpx.Response(200, json={"status": "ok", "ready": True}, request=request)
         if request.url.path == "/models":
+            role_models = state.get("api_models", {})
             return httpx.Response(
                 200,
                 json={
                     "models": {
-                        role: {"model": state["api_model"], "base_url": "http://vllm/v1"}
+                        role: {
+                            "model": role_models.get(role, state["api_model"]),
+                            "base_url": "http://model/v1",
+                        }
                         for role in ("principal", "manager", "worker", "curator")
                     }
                 },
@@ -54,7 +60,7 @@ def mock_transport(state: dict[str, str]):
     return httpx.MockTransport(handler)
 
 
-def test_model_discovery_returns_the_single_vllm_model():
+def test_model_discovery_returns_the_single_endpoint_model():
     client = httpx.Client(transport=httpx.MockTransport(
         lambda request: httpx.Response(
             200,
@@ -63,7 +69,7 @@ def test_model_discovery_returns_the_single_vllm_model():
         )
     ))
 
-    discovery = VLLMModelDiscovery("http://vllm/v1", client=client)
+    discovery = OpenAIModelDiscovery("http://model/v1", client=client)
 
     assert discovery.detect_model() == MODEL
 
@@ -75,8 +81,8 @@ def test_model_discovery_sends_configured_bearer_without_crossing_control_token(
         requests.append(request)
         return httpx.Response(200, json={"data": [{"id": MODEL}]}, request=request)
 
-    discovery = VLLMModelDiscovery(
-        "http://vllm/v1",
+    discovery = OpenAIModelDiscovery(
+        "http://model/v1",
         api_key="model-token",
         client=httpx.Client(transport=httpx.MockTransport(handler)),
     )
@@ -93,8 +99,8 @@ def test_model_discovery_omits_authorization_when_key_is_empty():
         requests.append(request)
         return httpx.Response(200, json={"data": [{"id": MODEL}]}, request=request)
 
-    discovery = VLLMModelDiscovery(
-        "http://vllm/v1",
+    discovery = OpenAIModelDiscovery(
+        "http://model/v1",
         api_key="",
         client=httpx.Client(transport=httpx.MockTransport(handler)),
     )
@@ -138,7 +144,7 @@ def test_agent_team_api_client_omits_authorization_when_token_is_empty():
     assert "authorization" not in requests[0].headers
 
 
-def test_model_discovery_rejects_ambiguous_vllm_endpoint():
+def test_model_discovery_rejects_ambiguous_endpoint():
     client = httpx.Client(transport=httpx.MockTransport(
         lambda request: httpx.Response(
             200,
@@ -148,7 +154,85 @@ def test_model_discovery_rejects_ambiguous_vllm_endpoint():
     ))
 
     with pytest.raises(ModelDiscoveryError, match="multiple models"):
-        VLLMModelDiscovery("http://vllm/v1", client=client).detect_model()
+        OpenAIModelDiscovery("http://model/v1", client=client).detect_model()
+
+
+def test_explicit_multi_model_selection_allows_role_specific_models(tmp_path: Path):
+    source_config = tmp_path / "config.py"
+    source_runfile = tmp_path / "source-run"
+    live_runfile = tmp_path / "live-run"
+    source_config.write_text('model_name = os.getenv(f"{env_prefix}LLM_MODEL", "auto")\n')
+    source_runfile.write_text('export LLM_MODEL="${LLM_MODEL:-auto}"\n')
+    live_runfile.write_text(f'export LLM_MODEL="{MODEL}"\n')
+
+    other_model = "vendor/other-model"
+    state = {
+        "endpoint_model": MODEL,
+        "endpoint_models": [MODEL, other_model],
+        "api_model": MODEL,
+        "api_models": {
+            "principal": MODEL,
+            "manager": other_model,
+            "worker": other_model,
+            "curator": MODEL,
+        },
+    }
+    transport = mock_transport(state)
+    manager = SwarmManager(
+        OpenAIModelDiscovery("http://model/v1", client=httpx.Client(transport=transport)),
+        AgentTeamAPIClient("http://agent", client=httpx.Client(transport=transport)),
+        SwarmConfigReconciler(source_config, source_runfile, live_runfile),
+        type("Service", (), {"restart": lambda self: None})(),
+    )
+
+    status = manager.inspect()
+
+    assert status.synchronized is True
+    assert status.expected_model == MODEL
+    assert status.api_models["manager"] == other_model
+
+
+def test_auto_selection_keeps_source_generic_and_pins_live_auto(tmp_path: Path):
+    source_config = tmp_path / "config.py"
+    source_runfile = tmp_path / "source-run"
+    live_runfile = tmp_path / "live-run"
+    source_config.write_text(
+        'model_name = os.getenv(f"{env_prefix}LLM_MODEL", "auto")\n'
+    )
+    auto_runfile = 'export LLM_MODEL="${LLM_MODEL:-auto}"\n'
+    source_runfile.write_text(auto_runfile)
+    live_runfile.write_text(auto_runfile)
+
+    state = {"endpoint_model": MODEL, "api_model": MODEL}
+    transport = mock_transport(state)
+    discovery = OpenAIModelDiscovery("http://model/v1", client=httpx.Client(transport=transport))
+    api = AgentTeamAPIClient("http://agent", client=httpx.Client(transport=transport))
+
+    class FakeService:
+        restart_count = 0
+
+        def restart(self):
+            self.restart_count += 1
+
+    service = FakeService()
+    manager = SwarmManager(
+        discovery,
+        api,
+        SwarmConfigReconciler(source_config, source_runfile, live_runfile),
+        service,
+    )
+
+    status = manager.inspect()
+    result = manager.reconcile()
+
+    assert status.synchronized is True
+    assert result.changed_files == [str(live_runfile)]
+    assert result.restarted is True
+    assert result.verified is True
+    assert service.restart_count == 1
+    assert source_config.read_text() == 'model_name = os.getenv(f"{env_prefix}LLM_MODEL", "auto")\n'
+    assert source_runfile.read_text() == auto_runfile
+    assert live_runfile.read_text() == 'export LLM_MODEL="auto"\n'
 
 
 def test_runfile_model_extraction_and_reconciliation():
@@ -172,20 +256,19 @@ exec server
     assert OLD_MODEL not in updated
 
 
-def test_reconcile_updates_all_layers_restarts_and_verifies(tmp_path: Path):
+def test_explicit_reconcile_updates_only_the_live_deployment_and_verifies(tmp_path: Path):
     source_config = tmp_path / "config.py"
     source_runfile = tmp_path / "source-run"
     live_runfile = tmp_path / "live-run"
-    source_config.write_text(
-        'model_name = os.getenv(f"{env_prefix}LLM_MODEL", "old/model")\n'
-    )
-    old_runfile = 'export LLM_MODEL="${LLM_MODEL:-old/model}"\n'
-    source_runfile.write_text(old_runfile)
-    live_runfile.write_text(old_runfile)
+    source_config_text = 'model_name = os.getenv(f"{env_prefix}LLM_MODEL", "auto")\n'
+    source_runfile_text = 'export LLM_MODEL="${LLM_MODEL:-auto}"\n'
+    source_config.write_text(source_config_text)
+    source_runfile.write_text(source_runfile_text)
+    live_runfile.write_text('export LLM_MODEL="${LLM_MODEL:-old/model}"\n')
 
-    state = {"vllm_model": MODEL, "api_model": OLD_MODEL}
+    state = {"endpoint_model": MODEL, "api_model": OLD_MODEL}
     transport = mock_transport(state)
-    discovery = VLLMModelDiscovery("http://vllm/v1", client=httpx.Client(transport=transport))
+    discovery = OpenAIModelDiscovery("http://model/v1", client=httpx.Client(transport=transport))
     api = AgentTeamAPIClient("http://agent", client=httpx.Client(transport=transport))
 
     class FakeService:
@@ -200,22 +283,53 @@ def test_reconcile_updates_all_layers_restarts_and_verifies(tmp_path: Path):
     reconciler = SwarmConfigReconciler(source_config, source_runfile, live_runfile)
     manager = SwarmManager(discovery, api, reconciler, service)
 
-    result = manager.reconcile()
+    result = manager.reconcile(MODEL)
 
     assert result.model == MODEL
     assert result.restarted is True
     assert result.verified is True
     assert service.restart_count == 1
-    assert extract_runfile_model(source_runfile.read_text()) == MODEL
+    assert result.changed_files == [str(live_runfile)]
+    assert source_config.read_text() == source_config_text
+    assert source_runfile.read_text() == source_runfile_text
+    assert live_runfile.read_text() == f'export LLM_MODEL="{MODEL}"\n'
     assert extract_runfile_model(live_runfile.read_text()) == MODEL
-    assert MODEL in source_config.read_text()
+
+
+def test_auto_reconcile_replaces_stale_live_selection_and_verifies(tmp_path: Path):
+    source_config = tmp_path / "config.py"
+    source_runfile = tmp_path / "source-run"
+    live_runfile = tmp_path / "live-run"
+    source_config.write_text('model_name = os.getenv(f"{env_prefix}LLM_MODEL", "auto")\n')
+    source_runfile.write_text('export LLM_MODEL="${LLM_MODEL:-auto}"\n')
+    live_runfile.write_text('export LLM_MODEL="stale/model"\n')
+
+    state = {"endpoint_model": MODEL, "api_model": OLD_MODEL}
+    transport = mock_transport(state)
+
+    class FakeService:
+        def restart(self):
+            state["api_model"] = MODEL
+
+    manager = SwarmManager(
+        OpenAIModelDiscovery("http://model/v1", client=httpx.Client(transport=transport)),
+        AgentTeamAPIClient("http://agent", client=httpx.Client(transport=transport)),
+        SwarmConfigReconciler(source_config, source_runfile, live_runfile),
+        FakeService(),
+    )
+
+    result = manager.reconcile()
+
+    assert result.verified is True
+    assert result.changed_files == [str(live_runfile)]
+    assert live_runfile.read_text() == 'export LLM_MODEL="auto"\n'
 
 
 def test_core_inspection_needs_no_supervisor_or_managed_files():
-    state = {"vllm_model": MODEL, "api_model": MODEL}
+    state = {"endpoint_model": MODEL, "api_model": MODEL}
     transport = mock_transport(state)
     manager = SwarmManager(
-        VLLMModelDiscovery("http://vllm/v1", client=httpx.Client(transport=transport)),
+        OpenAIModelDiscovery("http://vllm/v1", client=httpx.Client(transport=transport)),
         AgentTeamAPIClient("http://agent", client=httpx.Client(transport=transport)),
         effective_models={role: MODEL for role in ("principal", "manager", "worker", "curator")},
     )
@@ -234,7 +348,7 @@ def test_unavailable_supervisor_prevents_mutation_but_allows_plan(tmp_path):
     for path in paths[1:]:
         path.write_text('export LLM_MODEL="${LLM_MODEL:-old/model}"\n')
     originals = [path.read_text() for path in paths]
-    state = {"vllm_model": MODEL, "api_model": OLD_MODEL}
+    state = {"endpoint_model": MODEL, "api_model": OLD_MODEL}
     transport = mock_transport(state)
 
     class Unavailable:
@@ -245,12 +359,12 @@ def test_unavailable_supervisor_prevents_mutation_but_allows_plan(tmp_path):
             pytest.fail("restart must not run")
 
     manager = SwarmManager(
-        VLLMModelDiscovery("http://vllm/v1", client=httpx.Client(transport=transport)),
+        OpenAIModelDiscovery("http://vllm/v1", client=httpx.Client(transport=transport)),
         AgentTeamAPIClient("http://agent", client=httpx.Client(transport=transport)),
         SwarmConfigReconciler(*paths), Unavailable(),
     )
     plan = manager.reconcile(dry_run=True)
-    assert len(plan.changed_files) == 3
+    assert len(plan.changed_files) == 1
     assert plan.status.supervisor_state == "unavailable"
     with pytest.raises(ServiceControlError, match="not running"):
         manager.reconcile()
@@ -262,7 +376,7 @@ def test_no_restart_reports_pending_even_when_api_already_matches(tmp_path):
     paths[0].write_text('model = os.getenv("LLM_MODEL", "old/model")\n')
     for path in paths[1:]:
         path.write_text('export LLM_MODEL="${LLM_MODEL:-old/model}"\n')
-    transport = mock_transport({"vllm_model": MODEL, "api_model": MODEL})
+    transport = mock_transport({"endpoint_model": MODEL, "api_model": MODEL})
 
     class Available:
         def preflight(self):
@@ -272,7 +386,7 @@ def test_no_restart_reports_pending_even_when_api_already_matches(tmp_path):
             pytest.fail("restart disabled")
 
     manager = SwarmManager(
-        VLLMModelDiscovery("http://vllm/v1", client=httpx.Client(transport=transport)),
+        OpenAIModelDiscovery("http://vllm/v1", client=httpx.Client(transport=transport)),
         AgentTeamAPIClient("http://agent", client=httpx.Client(transport=transport)),
         SwarmConfigReconciler(*paths), Available(),
     )
@@ -280,13 +394,13 @@ def test_no_restart_reports_pending_even_when_api_already_matches(tmp_path):
     assert result.pending_restart
     assert not result.verified
     assert result.status.supervisor_state == "unavailable"
-    assert len(result.changed_files) == 3
+    assert len(result.changed_files) == 1
 
 
 def test_core_inspection_reports_missing_effective_roles():
-    transport = mock_transport({"vllm_model": MODEL, "api_model": MODEL})
+    transport = mock_transport({"endpoint_model": MODEL, "api_model": MODEL})
     manager = SwarmManager(
-        VLLMModelDiscovery("http://vllm/v1", client=httpx.Client(transport=transport)),
+        OpenAIModelDiscovery("http://vllm/v1", client=httpx.Client(transport=transport)),
         AgentTeamAPIClient("http://agent", client=httpx.Client(transport=transport)),
     )
     assert not manager.inspect().synchronized
@@ -301,9 +415,9 @@ def test_adapter_inspection_compares_effective_role_overrides(tmp_path):
     paths[0].write_text(f'model = os.getenv("LLM_MODEL", "{MODEL}")\n')
     for path in paths[1:]:
         path.write_text(f'export LLM_MODEL="${{LLM_MODEL:-{MODEL}}}"\n')
-    transport = mock_transport({"vllm_model": MODEL, "api_model": MODEL})
+    transport = mock_transport({"endpoint_model": MODEL, "api_model": MODEL})
     manager = SwarmManager(
-        VLLMModelDiscovery("http://vllm/v1", client=httpx.Client(transport=transport)),
+        OpenAIModelDiscovery("http://vllm/v1", client=httpx.Client(transport=transport)),
         AgentTeamAPIClient("http://agent", client=httpx.Client(transport=transport)),
         SwarmConfigReconciler(*paths),
         effective_models={role: OLD_MODEL if role == "worker" else MODEL for role in ("principal", "manager", "worker", "curator")},
@@ -316,10 +430,10 @@ def test_adapter_inspection_compares_effective_role_overrides(tmp_path):
 @pytest.mark.parametrize("override", [None, OLD_MODEL])
 def test_reconcile_refreshes_effective_models_without_hiding_overrides(tmp_path, override):
     paths = [tmp_path / name for name in ("config.py", "source", "live")]
-    paths[0].write_text('model = os.getenv("LLM_MODEL", "old/model")\n')
-    for path in paths[1:]:
-        path.write_text('export LLM_MODEL="${LLM_MODEL:-old/model}"\n')
-    state = {"vllm_model": MODEL, "api_model": OLD_MODEL}
+    paths[0].write_text('model = os.getenv("LLM_MODEL", "auto")\n')
+    paths[1].write_text('export LLM_MODEL="${LLM_MODEL:-auto}"\n')
+    paths[2].write_text('export LLM_MODEL="old/model"\n')
+    state = {"endpoint_model": MODEL, "endpoint_models": [MODEL, OLD_MODEL], "api_model": OLD_MODEL}
     transport = mock_transport(state)
 
     class Available:
@@ -327,20 +441,22 @@ def test_reconcile_refreshes_effective_models_without_hiding_overrides(tmp_path,
             state["api_model"] = MODEL
 
     def effective_models():
-        model = override or extract_config_model(paths[0].read_text())
+        model = override or extract_runfile_model(paths[2].read_text())
         return {role: model for role in ("principal", "manager", "worker", "curator")}
 
     manager = SwarmManager(
-        VLLMModelDiscovery("http://vllm/v1", client=httpx.Client(transport=transport)),
+        OpenAIModelDiscovery("http://vllm/v1", client=httpx.Client(transport=transport)),
         AgentTeamAPIClient("http://agent", client=httpx.Client(transport=transport)),
         SwarmConfigReconciler(*paths), Available(),
         effective_models_provider=effective_models,
         verification_attempts=1,
     )
-    result = manager.reconcile()
+    result = manager.reconcile(MODEL)
     assert result.restarted
     assert result.verified is (override is None)
     assert result.status.effective_models["worker"] == (override or MODEL)
+    assert paths[0].read_text() == 'model = os.getenv("LLM_MODEL", "auto")\n'
+    assert paths[1].read_text() == 'export LLM_MODEL="${LLM_MODEL:-auto}"\n'
 
 
 def test_s6_explicit_invalid_command_does_not_fall_back_to_path(tmp_path, monkeypatch):
@@ -470,9 +586,9 @@ def test_reconcile_waits_for_eventual_api_convergence(tmp_path: Path):
     source_runfile.write_text(old_runfile)
     live_runfile.write_text(old_runfile)
 
-    state = {"vllm_model": MODEL, "api_model": OLD_MODEL}
+    state = {"endpoint_model": MODEL, "api_model": OLD_MODEL}
     transport = mock_transport(state)
-    discovery = VLLMModelDiscovery("http://vllm/v1", client=httpx.Client(transport=transport))
+    discovery = OpenAIModelDiscovery("http://model/v1", client=httpx.Client(transport=transport))
     api = AgentTeamAPIClient("http://agent", client=httpx.Client(transport=transport))
 
     class FakeService:

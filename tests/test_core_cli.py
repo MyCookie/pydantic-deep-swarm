@@ -36,10 +36,13 @@ def test_s6_manager_has_effective_yaml_models(monkeypatch, tmp_path):
     assert build_swarm_manager().effective_models == {"worker": "yaml-model"}
 
 
-@pytest.mark.parametrize("authority", ["source", "yaml", "environment", "role"])
+@pytest.mark.parametrize("authority", ["live", "yaml", "environment", "role"])
 def test_s6_effective_models_refresh_preserves_authority(monkeypatch, tmp_path, authority):
     source = tmp_path / "config.py"
     source.write_text('model = os.getenv("LLM_MODEL", "old-model")\n')
+    live = tmp_path / "live-run"
+    live.write_text('export LLM_MODEL="old-model"\n')
+    monkeypatch.setenv("AGENT_TEAM_LIVE_RUNFILE", str(live))
     config = tmp_path / "core.yaml"
     monkeypatch.setenv("AGENT_TEAM_CONFIG_FILE", str(config))
     monkeypatch.setenv("AGENT_TEAM_CONFIG_SOURCE", str(source))
@@ -55,10 +58,72 @@ def test_s6_effective_models_refresh_preserves_authority(monkeypatch, tmp_path, 
         monkeypatch.setenv("WORKER_MODEL", "authoritative-model")
     manager = build_swarm_manager()
     source.write_text('model = os.getenv("LLM_MODEL", "new-model")\n')
+    live.write_text('export LLM_MODEL="new-model"\n')
     refreshed = manager.effective_models_provider()
-    assert refreshed["worker"] == ("new-model" if authority == "source" else "authoritative-model")
-    if authority == "source":
+    assert refreshed["worker"] == ("new-model" if authority == "live" else "authoritative-model")
+    if authority == "live":
         assert manager.effective_models["worker"] == "old-model"
+
+
+@pytest.mark.parametrize("yaml_auto", [False, True])
+def test_live_pin_with_multiple_models_preserves_config_authority(monkeypatch, tmp_path, yaml_auto):
+    source = tmp_path / "config.py"
+    source.write_text('model = os.getenv("LLM_MODEL", "auto")\n')
+    source_run = tmp_path / "source-run"
+    source_run.write_text('export LLM_MODEL="auto"\nexec service\n')
+    live = tmp_path / "live-run"
+    live.write_text('export LLM_MODEL="selected-model"\nexec service\n')
+    config = tmp_path / "config.yaml"
+    monkeypatch.setenv("AGENT_TEAM_CONFIG_FILE", str(config))
+    monkeypatch.setenv("AGENT_TEAM_CONFIG_SOURCE", str(source))
+    monkeypatch.setenv("AGENT_TEAM_SOURCE_RUNFILE", str(source_run))
+    monkeypatch.setenv("AGENT_TEAM_LIVE_RUNFILE", str(live))
+    monkeypatch.setenv("AGENT_TEAM_SERVICE_DIR", str(tmp_path / "service"))
+    monkeypatch.setenv("AGENT_TEAM_SUPERVISOR", "s6")
+    for name in ("LLM_MODEL", "PRINCIPAL_MODEL", "MANAGER_MODEL", "WORKER_MODEL", "CURATOR_MODEL"):
+        monkeypatch.delenv(name, raising=False)
+    if yaml_auto:
+        config.write_text("models:\n" + "".join(f"  {role}:\n    model: auto\n" for role in ("principal", "manager", "worker", "curator")))
+
+    class Discovery:
+        base_url = "http://models/v1"
+        def list_models(self):
+            return ["selected-model", "other-model"]
+        @staticmethod
+        def require_single(models):
+            from agent_team.control.discovery import OpenAIModelDiscovery
+            return OpenAIModelDiscovery.require_single(models)
+
+    class API:
+        def __init__(self, *args, **kwargs):
+            pass
+        def models(self):
+            return {role: {"model": "selected-model", "base_url": "http://models/v1"} for role in ("principal", "manager", "worker", "curator")}
+        def health(self):
+            return {"status": "ok"}
+        def ready(self):
+            return {"status": "ok", "ready": True}
+
+    class Service:
+        def __init__(self, **kwargs):
+            pass
+        def preflight(self):
+            pass
+        def restart(self):
+            pass
+
+    monkeypatch.setattr("agent_team.cli.build_model_discovery", Discovery)
+    monkeypatch.setattr("agent_team.cli.AgentTeamAPIClient", API)
+    monkeypatch.setattr("agent_team.cli.S6ServiceController", Service)
+    manager = build_swarm_manager()
+    if yaml_auto:
+        from agent_team.control.discovery import ModelDiscoveryError
+        with pytest.raises(ModelDiscoveryError, match="multiple models"):
+            manager.inspect()
+    else:
+        assert manager.inspect().synchronized
+        assert manager.reconcile("selected-model").verified
+        assert '"auto"' in source.read_text()
 
 
 def test_manager_resolves_empty_role_model_like_runtime(monkeypatch, tmp_path):

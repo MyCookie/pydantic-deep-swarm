@@ -18,6 +18,7 @@ EXPECTED_DOCS = {
     "operations.md",
     "project-brief.md",
     "model-selection-contract.md",
+    "foreground-serve-contract.md",
     "testing.md",
 }
 STALE_TOP_LEVEL = {

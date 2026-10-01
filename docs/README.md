@@ -22,6 +22,9 @@ architecture, runtime behavior, operations, and testing guidance live here.
 
 ## Planned contracts
 
+- [Foreground serve](foreground-serve-contract.md) — issue #4 startup, readiness,
+  ownership, and shutdown decisions; not implemented runtime behavior.
+
 - [Owned model selection](model-selection-contract.md) — issue #5 decisions and
   future acceptance gates; not implemented runtime behavior.
 
@@ -41,7 +44,8 @@ or status documents.
 
 ## Source-of-truth order
 
-When prose and behavior disagree, use this order:
+Planned contracts describe future behavior. For current implemented behavior,
+when prose and behavior disagree, use this order:
 
 1. Typed contracts and runtime code under `src/agent_team/`.
 2. Executable acceptance tests under `tests/`.

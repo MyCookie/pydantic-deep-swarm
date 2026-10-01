@@ -1,5 +1,12 @@
 # Agent Team testing
 
+The [standalone acceptance gate](standalone-acceptance-gate.md) specifies issue #8's
+future fresh-clone `uv sync --frozen`, installed CLI, deterministic loopback model,
+signal, migration, nonpollution, and evidence requirements. The developer commands
+below describe the existing suite. Their `PYTHONPATH` workflow and opt-in skips do
+not establish that future installed-clone gate; publication-only checks do not
+claim standalone runtime acceptance.
+
 ## Test layers
 
 The suite is organized around observable boundaries rather than model internals.

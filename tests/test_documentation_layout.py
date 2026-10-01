@@ -19,6 +19,7 @@ EXPECTED_DOCS = {
     "project-brief.md",
     "model-selection-contract.md",
     "foreground-serve-contract.md",
+    "standalone-acceptance-gate.md",
     "testing.md",
 }
 STALE_TOP_LEVEL = {

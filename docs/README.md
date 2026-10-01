@@ -28,6 +28,10 @@ architecture, runtime behavior, operations, and testing guidance live here.
 - [Owned model selection](model-selection-contract.md) — issue #5 decisions and
   future acceptance gates; not implemented runtime behavior.
 
+- [Standalone acceptance gate](standalone-acceptance-gate.md) — issue #8 frozen
+  clone installation, isolated fake-HTTP/process/migration proof, and required
+  evidence before cutover; a future build gate, not an executed acceptance report.
+
 ## Colocated specifications
 
 Some documentation remains beside the schema or package it governs so it can be

@@ -249,6 +249,10 @@ request.
 
 ## Swarm control plane
 
+The commands below describe current implementation. The planned replacement is
+the [owned model-selection contract](model-selection-contract.md); its YAML-only
+reconciliation and optional supervisor behavior require the subsequent build.
+
 With live service paths configured:
 
 ```sh

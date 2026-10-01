@@ -17,6 +17,7 @@ EXPECTED_DOCS = {
     "gitops-runbook.md",
     "operations.md",
     "project-brief.md",
+    "model-selection-contract.md",
     "testing.md",
 }
 STALE_TOP_LEVEL = {

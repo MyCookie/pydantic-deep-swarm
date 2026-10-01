@@ -1,6 +1,6 @@
 # Foreground serve contract
 
-This is the accepted decision contract for [issue #4](https://github.com/MyCookie/pydantic-deep-swarm/issues/4), within the [standalone planning map](https://github.com/MyCookie/pydantic-deep-swarm/issues/1). It specifies future implementation and acceptance work; it does not claim that `agent-team serve` exists or that the gates below have passed. Configuration/path authority belongs to issue #2, canonical knowledge preparation to issue #3, persistent model reconciliation to issue #5, and overall standalone smoke evidence to issue #8.
+This is the accepted decision contract for [issue #4](https://github.com/MyCookie/pydantic-deep-swarm/issues/4), within the [standalone planning map](https://github.com/MyCookie/pydantic-deep-swarm/issues/1). It specifies future implementation and acceptance work. Issue #7 adds a basic foreground `agent-team serve` wrapper around the existing HTTP lifecycle; that does not establish the full lifecycle guarantees or acceptance gates below. Configuration/path authority belongs to issue #2, canonical knowledge preparation to issue #3, persistent model reconciliation to issue #5, and overall standalone smoke evidence to issue #8.
 
 ## Invocation and ownership
 

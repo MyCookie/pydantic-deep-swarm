@@ -99,7 +99,7 @@ def build_swarm_manager(*, supervisor: str | None = None) -> SwarmManager:
             fallback_model = None
         current = get_config(fallback_model=fallback_model)
         return {
-            role: model.model or os.getenv("LLM_MODEL", "auto")
+            role: model.model or os.getenv("LLM_MODEL", fallback_model or "auto")
             for role, model in current.models.items()
         }
 

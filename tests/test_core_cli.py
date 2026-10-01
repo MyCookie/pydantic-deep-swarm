@@ -65,8 +65,8 @@ def test_s6_effective_models_refresh_preserves_authority(monkeypatch, tmp_path, 
         assert manager.effective_models["worker"] == "old-model"
 
 
-@pytest.mark.parametrize("yaml_auto", [False, True])
-def test_live_pin_with_multiple_models_preserves_config_authority(monkeypatch, tmp_path, yaml_auto):
+@pytest.mark.parametrize("yaml_selection", [None, "auto", "null", "empty"])
+def test_live_pin_with_multiple_models_preserves_config_authority(monkeypatch, tmp_path, yaml_selection):
     source = tmp_path / "config.py"
     source.write_text('model = os.getenv("LLM_MODEL", "auto")\n')
     source_run = tmp_path / "source-run"
@@ -82,8 +82,9 @@ def test_live_pin_with_multiple_models_preserves_config_authority(monkeypatch, t
     monkeypatch.setenv("AGENT_TEAM_SUPERVISOR", "s6")
     for name in ("LLM_MODEL", "PRINCIPAL_MODEL", "MANAGER_MODEL", "WORKER_MODEL", "CURATOR_MODEL"):
         monkeypatch.delenv(name, raising=False)
-    if yaml_auto:
-        config.write_text("models:\n" + "".join(f"  {role}:\n    model: auto\n" for role in ("principal", "manager", "worker", "curator")))
+    if yaml_selection is not None:
+        value = {"auto": "auto", "null": "null", "empty": '\"\"'}[yaml_selection]
+        config.write_text("models:\n" + "".join(f"  {role}:\n    model: {value}\n" for role in ("principal", "manager", "worker", "curator")))
 
     class Discovery:
         base_url = "http://models/v1"
@@ -116,7 +117,7 @@ def test_live_pin_with_multiple_models_preserves_config_authority(monkeypatch, t
     monkeypatch.setattr("agent_team.cli.AgentTeamAPIClient", API)
     monkeypatch.setattr("agent_team.cli.S6ServiceController", Service)
     manager = build_swarm_manager()
-    if yaml_auto:
+    if yaml_selection == "auto":
         from agent_team.control.discovery import ModelDiscoveryError
         with pytest.raises(ModelDiscoveryError, match="multiple models"):
             manager.inspect()

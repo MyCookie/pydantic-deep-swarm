@@ -24,6 +24,7 @@ FILES = (
     "test_child_confinement.py",
     "test_forced_child_foreground.py",
     "test_foreground_phase_deadlines.py",
+    "test_knowledge_startup_diagnostics.py",
 )
 DEADLINE_SECONDS = 20
 SENSITIVE_TEXT = (

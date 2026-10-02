@@ -108,8 +108,8 @@ configuration and HTTP state without requiring s6 assets or environment variable
 `s6-service/` remains the canonical location for optional deployment templates;
 installed live copies belong to the deployment, outside the checkout.
 
-The s6 controller, live-runfile reconciliation, and supervised `bootstrap`
-workflow remain compatibility surfaces. `AGENT_TEAM_SUPERVISOR=none|s6` selects
+The s6 controller and supervised `bootstrap` workflow remain compatibility
+surfaces. `AGENT_TEAM_SUPERVISOR=none|s6` selects
 the adapter explicitly. Without that setting, a nonempty
 `AGENT_TEAM_SERVICE_DIR` selects legacy s6 mode; otherwise supervision is
 `not_configured`. Finding s6 executables never selects the adapter. Explicit
@@ -121,15 +121,21 @@ preparation, recovery, retention, and engine construction. App, engine, and
 retention share the prepared knowledge store. The owner drains and closes these
 resources before releasing ownership; HTTP requests never initialize a missing
 or stopping runtime. Originating-generation guards protect managed commits.
+Knowledge preparation reports its selected source, verification, preserved
+history count and digest, recovery/upgrade status, and archive or journal guidance
+before retention. These preparation counts are separate from records later removed
+by retention. Disabled knowledge reports that selection without accessing databases.
 
 Missing optional supervision is not drift. Selected but unavailable supervision
 is a visible failure. Core status compares effective role models and the API;
-only the s6 compatibility profile also compares source defaults and runfiles.
-Reconciliation requires that profile, and checks requested restart capability
-before writing. Reconciliation leaves tracked source defaults and templates
-generic and updates only the live deployment selection. Dry runs never restart
-or claim verification. File-only updates
-report a pending restart, and successful verification requires runtime convergence.
+source defaults and runfiles are not model authority. `OwnedSwarmManager`
+reconciles the selected external YAML in core mode: it locks, rereads, saves a
+backup, and atomically commits the whole configuration before optional activation.
+An injected restart adapter may activate that committed configuration. Missing or
+failed requested activation remains pending; it does not undo persistence or claim
+verification. Dry runs create no locks or files and never restart. Verification
+requires observed runtime convergence; skipping restart or verification leaves the
+corresponding activation outcome pending.
 
 ## Scheduling and lifecycle
 

@@ -156371,6 +156371,386 @@
         "explicit_cleanup_calls": [],
         "fault_family": "Run all observed occurrences of this site across seven branches, each with 30-second maximum knowledge-operation budget; 90-second declared family outer limit. Private proof copies are cleaned and no initializer thread is abandoned."
       }
+    },
+    {
+      "id": "knowledge.delete_rolls_back_after_real_lease_stops_before_commit",
+      "contract": "3/4",
+      "nodes": [
+        "tests/test_knowledge_commit_guard.py::test_delete_rolls_back_after_real_lease_stops_before_commit"
+      ],
+      "setup": {
+        "test": "test_delete_rolls_back_after_real_lease_stops_before_commit",
+        "fixture_arguments": [
+          "tmp_path",
+          "monkeypatch",
+          "request"
+        ],
+        "parameters": {},
+        "isolation": "Independent complete SQL history under external per-case pytest state. Real runtime OS lease and public canonical preparation; no fake guard."
+      },
+      "operation": {
+        "entry_point": "tests/test_knowledge_commit_guard.py::test_delete_rolls_back_after_real_lease_stops_before_commit",
+        "called_functions": [
+          "RuntimeLease",
+          "connections.append",
+          "history_store",
+          "lease.mark_stopping",
+          "len",
+          "monkeypatch.context",
+          "patch.setattr",
+          "pytest.raises",
+          "raw",
+          "real_connect",
+          "request.node.user_properties.append",
+          "sql.startswith",
+          "store.delete",
+          "super",
+          "super().close",
+          "super().execute",
+          "super().execute('SELECT COUNT(*) FROM knowledge_records').fetchone",
+          "super().rollback"
+        ]
+      },
+      "expected": {
+        "observations": {
+          "delete_executed": true,
+          "rollback_completed": true,
+          "raw_values_and_sql_types_preserved": true,
+          "lease_released": true
+        },
+        "assertion_predicates": [
+          "not lease.is_held",
+          "len(connections) == 1",
+          "connections[0].deleted and connections[0].rolled_back",
+          "connections[0].transaction_closed and connections[0].connection_closed",
+          "lease.is_held",
+          "raw(path) == before",
+          "cursor.rowcount == 1",
+          "self.in_transaction",
+          "super().execute('SELECT COUNT(*) FROM knowledge_records').fetchone()[0] == 1"
+        ],
+        "expected_exception_checks": [
+          "pytest.raises(RuntimeError, match='active write generation')"
+        ],
+        "source": "tests/test_knowledge_commit_guard.py",
+        "source_sha256": "043caa770447f73efa265ad72c58d516c0f6568b2e828b6820e008fc20ff78ee",
+        "fixture_oracle_source": "tests/test_knowledge_preparation.py",
+        "fixture_oracle_sha256": "d25f47ec5d95d721b984193251e72ad925143e253ec43729ff611e392f2c95c9"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "Test-owned external pytest state root and independent canonical fixture only.",
+        "production_operations": {
+          "runtime_lease": [
+            "Lock creation if absent and owned runtime-owner metadata; reacquire only in the explicit stale-generation branch."
+          ],
+          "delete": [
+            "Live existing case removes old row only; missing, stopped, stale, and rolled-back DELETE preserve the complete SQL history and types. SQLite temporary transaction material is closed/rolled back by connection cleanup."
+          ],
+          "knowledge_preparation": [
+            "Canonical validation; no migration or retention, no archive retirement."
+          ]
+        }
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "enforcement": "Per-case SIGALRM and monotonic elapsed assertion cap the whole operation at 20 seconds.",
+        "resources": "Real SQLite connections close; rollback confirmed after executed DELETE. Actual OS lease releases via context exit, including assertion failures.",
+        "state": "Test-owned pytest state removed by fixture lifecycle; original production state is untouched."
+      }
+    },
+    {
+      "id": "knowledge.delete_rejects_inactive_originating_generation.stopping",
+      "contract": "3/4",
+      "nodes": [
+        "tests/test_knowledge_commit_guard.py::test_delete_rejects_inactive_originating_generation[stopping]"
+      ],
+      "setup": {
+        "test": "test_delete_rejects_inactive_originating_generation",
+        "fixture_arguments": [
+          "tmp_path",
+          "monkeypatch",
+          "request"
+        ],
+        "parameters": {
+          "generation": "stopping"
+        },
+        "isolation": "Independent complete SQL history under external per-case pytest state. Real runtime OS lease and public canonical preparation; no fake guard."
+      },
+      "operation": {
+        "entry_point": "tests/test_knowledge_commit_guard.py::test_delete_rejects_inactive_originating_generation[stopping]",
+        "called_functions": [
+          "RuntimeLease",
+          "connections.append",
+          "history_store",
+          "lease.acquire",
+          "lease.mark_stopping",
+          "lease.release",
+          "monkeypatch.context",
+          "patch.setattr",
+          "pytest.mark.parametrize",
+          "pytest.raises",
+          "raw",
+          "real_connect",
+          "request.node.user_properties.append",
+          "store.delete"
+        ]
+      },
+      "expected": {
+        "observations": {
+          "sqlite_not_opened": true,
+          "raw_values_and_sql_types_preserved": true,
+          "lease_released": true
+        },
+        "assertion_predicates": [
+          "not lease.is_held",
+          "not connections",
+          "lease.is_held",
+          "raw(path) == before",
+          "lease.generation != original"
+        ],
+        "expected_exception_checks": [
+          "pytest.raises(RuntimeError, match='active write generation')"
+        ],
+        "source": "tests/test_knowledge_commit_guard.py",
+        "source_sha256": "043caa770447f73efa265ad72c58d516c0f6568b2e828b6820e008fc20ff78ee",
+        "fixture_oracle_source": "tests/test_knowledge_preparation.py",
+        "fixture_oracle_sha256": "d25f47ec5d95d721b984193251e72ad925143e253ec43729ff611e392f2c95c9"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "Test-owned external pytest state root and independent canonical fixture only.",
+        "production_operations": {
+          "runtime_lease": [
+            "Lock creation if absent and owned runtime-owner metadata; reacquire only in the explicit stale-generation branch."
+          ],
+          "delete": [
+            "Live existing case removes old row only; missing, stopped, stale, and rolled-back DELETE preserve the complete SQL history and types. SQLite temporary transaction material is closed/rolled back by connection cleanup."
+          ],
+          "knowledge_preparation": [
+            "Canonical validation; no migration or retention, no archive retirement."
+          ]
+        }
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "enforcement": "Per-case SIGALRM and monotonic elapsed assertion cap the whole operation at 20 seconds.",
+        "resources": "Real SQLite connections close; rollback confirmed after executed DELETE. Actual OS lease releases via context exit, including assertion failures.",
+        "state": "Test-owned pytest state removed by fixture lifecycle; original production state is untouched."
+      }
+    },
+    {
+      "id": "knowledge.delete_rejects_inactive_originating_generation.stale",
+      "contract": "3/4",
+      "nodes": [
+        "tests/test_knowledge_commit_guard.py::test_delete_rejects_inactive_originating_generation[stale]"
+      ],
+      "setup": {
+        "test": "test_delete_rejects_inactive_originating_generation",
+        "fixture_arguments": [
+          "tmp_path",
+          "monkeypatch",
+          "request"
+        ],
+        "parameters": {
+          "generation": "stale"
+        },
+        "isolation": "Independent complete SQL history under external per-case pytest state. Real runtime OS lease and public canonical preparation; no fake guard."
+      },
+      "operation": {
+        "entry_point": "tests/test_knowledge_commit_guard.py::test_delete_rejects_inactive_originating_generation[stale]",
+        "called_functions": [
+          "RuntimeLease",
+          "connections.append",
+          "history_store",
+          "lease.acquire",
+          "lease.mark_stopping",
+          "lease.release",
+          "monkeypatch.context",
+          "patch.setattr",
+          "pytest.mark.parametrize",
+          "pytest.raises",
+          "raw",
+          "real_connect",
+          "request.node.user_properties.append",
+          "store.delete"
+        ]
+      },
+      "expected": {
+        "observations": {
+          "sqlite_not_opened": true,
+          "raw_values_and_sql_types_preserved": true,
+          "lease_released": true
+        },
+        "assertion_predicates": [
+          "not lease.is_held",
+          "not connections",
+          "lease.is_held",
+          "raw(path) == before",
+          "lease.generation != original"
+        ],
+        "expected_exception_checks": [
+          "pytest.raises(RuntimeError, match='active write generation')"
+        ],
+        "source": "tests/test_knowledge_commit_guard.py",
+        "source_sha256": "043caa770447f73efa265ad72c58d516c0f6568b2e828b6820e008fc20ff78ee",
+        "fixture_oracle_source": "tests/test_knowledge_preparation.py",
+        "fixture_oracle_sha256": "d25f47ec5d95d721b984193251e72ad925143e253ec43729ff611e392f2c95c9"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "Test-owned external pytest state root and independent canonical fixture only.",
+        "production_operations": {
+          "runtime_lease": [
+            "Lock creation if absent and owned runtime-owner metadata; reacquire only in the explicit stale-generation branch."
+          ],
+          "delete": [
+            "Live existing case removes old row only; missing, stopped, stale, and rolled-back DELETE preserve the complete SQL history and types. SQLite temporary transaction material is closed/rolled back by connection cleanup."
+          ],
+          "knowledge_preparation": [
+            "Canonical validation; no migration or retention, no archive retirement."
+          ]
+        }
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "enforcement": "Per-case SIGALRM and monotonic elapsed assertion cap the whole operation at 20 seconds.",
+        "resources": "Real SQLite connections close; rollback confirmed after executed DELETE. Actual OS lease releases via context exit, including assertion failures.",
+        "state": "Test-owned pytest state removed by fixture lifecycle; original production state is untouched."
+      }
+    },
+    {
+      "id": "knowledge.delete_commits_under_live_originating_generation.existing",
+      "contract": "3/4",
+      "nodes": [
+        "tests/test_knowledge_commit_guard.py::test_delete_commits_under_live_originating_generation[existing]"
+      ],
+      "setup": {
+        "test": "test_delete_commits_under_live_originating_generation",
+        "fixture_arguments": [
+          "tmp_path",
+          "request"
+        ],
+        "parameters": {
+          "record_id": "old",
+          "removed": true
+        },
+        "isolation": "Independent complete SQL history under external per-case pytest state. Real runtime OS lease and public canonical preparation; no fake guard."
+      },
+      "operation": {
+        "entry_point": "tests/test_knowledge_commit_guard.py::test_delete_commits_under_live_originating_generation[existing]",
+        "called_functions": [
+          "RuntimeLease",
+          "history_store",
+          "lease.check_generation",
+          "pytest.mark.parametrize",
+          "raw",
+          "request.node.user_properties.append",
+          "store.delete"
+        ]
+      },
+      "expected": {
+        "observations": {
+          "removed": true,
+          "remaining_raw_values_and_sql_types_preserved": true,
+          "lease_released": true
+        },
+        "assertion_predicates": [
+          "not lease.is_held",
+          "store.delete(record_id) is removed",
+          "raw(path) == expected"
+        ],
+        "expected_exception_checks": [],
+        "source": "tests/test_knowledge_commit_guard.py",
+        "source_sha256": "043caa770447f73efa265ad72c58d516c0f6568b2e828b6820e008fc20ff78ee",
+        "fixture_oracle_source": "tests/test_knowledge_preparation.py",
+        "fixture_oracle_sha256": "d25f47ec5d95d721b984193251e72ad925143e253ec43729ff611e392f2c95c9"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "Test-owned external pytest state root and independent canonical fixture only.",
+        "production_operations": {
+          "runtime_lease": [
+            "Lock creation if absent and owned runtime-owner metadata; reacquire only in the explicit stale-generation branch."
+          ],
+          "delete": [
+            "Live existing case removes old row only; missing, stopped, stale, and rolled-back DELETE preserve the complete SQL history and types. SQLite temporary transaction material is closed/rolled back by connection cleanup."
+          ],
+          "knowledge_preparation": [
+            "Canonical validation; no migration or retention, no archive retirement."
+          ]
+        }
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "enforcement": "Per-case SIGALRM and monotonic elapsed assertion cap the whole operation at 20 seconds.",
+        "resources": "Real SQLite connections close; rollback confirmed after executed DELETE. Actual OS lease releases via context exit, including assertion failures.",
+        "state": "Test-owned pytest state removed by fixture lifecycle; original production state is untouched."
+      }
+    },
+    {
+      "id": "knowledge.delete_commits_under_live_originating_generation.missing",
+      "contract": "3/4",
+      "nodes": [
+        "tests/test_knowledge_commit_guard.py::test_delete_commits_under_live_originating_generation[missing]"
+      ],
+      "setup": {
+        "test": "test_delete_commits_under_live_originating_generation",
+        "fixture_arguments": [
+          "tmp_path",
+          "request"
+        ],
+        "parameters": {
+          "record_id": "absent",
+          "removed": false
+        },
+        "isolation": "Independent complete SQL history under external per-case pytest state. Real runtime OS lease and public canonical preparation; no fake guard."
+      },
+      "operation": {
+        "entry_point": "tests/test_knowledge_commit_guard.py::test_delete_commits_under_live_originating_generation[missing]",
+        "called_functions": [
+          "RuntimeLease",
+          "history_store",
+          "lease.check_generation",
+          "pytest.mark.parametrize",
+          "raw",
+          "request.node.user_properties.append",
+          "store.delete"
+        ]
+      },
+      "expected": {
+        "observations": {
+          "removed": false,
+          "remaining_raw_values_and_sql_types_preserved": true,
+          "lease_released": true
+        },
+        "assertion_predicates": [
+          "not lease.is_held",
+          "store.delete(record_id) is removed",
+          "raw(path) == expected"
+        ],
+        "expected_exception_checks": [],
+        "source": "tests/test_knowledge_commit_guard.py",
+        "source_sha256": "043caa770447f73efa265ad72c58d516c0f6568b2e828b6820e008fc20ff78ee",
+        "fixture_oracle_source": "tests/test_knowledge_preparation.py",
+        "fixture_oracle_sha256": "d25f47ec5d95d721b984193251e72ad925143e253ec43729ff611e392f2c95c9"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "Test-owned external pytest state root and independent canonical fixture only.",
+        "production_operations": {
+          "runtime_lease": [
+            "Lock creation if absent and owned runtime-owner metadata; reacquire only in the explicit stale-generation branch."
+          ],
+          "delete": [
+            "Live existing case removes old row only; missing, stopped, stale, and rolled-back DELETE preserve the complete SQL history and types. SQLite temporary transaction material is closed/rolled back by connection cleanup."
+          ],
+          "knowledge_preparation": [
+            "Canonical validation; no migration or retention, no archive retirement."
+          ]
+        }
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "enforcement": "Per-case SIGALRM and monotonic elapsed assertion cap the whole operation at 20 seconds.",
+        "resources": "Real SQLite connections close; rollback confirmed after executed DELETE. Actual OS lease releases via context exit, including assertion failures.",
+        "state": "Test-owned pytest state removed by fixture lifecycle; original production state is untouched."
+      }
     }
   ],
   "fault_sites": [

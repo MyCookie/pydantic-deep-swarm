@@ -63,6 +63,9 @@ class KnowledgeResult:
     recovered: bool = False
     upgraded: bool = False
     remediation: str = "Stop all writers, preserve complete state and recovery evidence, and inspect private snapshots before repairing offline."
+    state_dir: str | None = None
+    selected_source: str | None = None
+    verification: str = "unknown"
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -112,6 +115,7 @@ class _Operation:
         self.budget = _Budget(deadline)
         self.hook = hook
         self.journal: dict[str, Any] | None = None
+        self.history_verified = False
         self.archive_path: Path | None = None
         self.migration_id: str | None = None
         self.durable_phase: str | None = None
@@ -170,7 +174,7 @@ def _paths(root: Path) -> dict[str, Path]:
 
 
 def _result(root: Path, status: str, **values: Any) -> KnowledgeResult:
-    return KnowledgeResult(status, candidate_paths={k: str(v) for k, v in _paths(root).items()}, **values)
+    return KnowledgeResult(status, state_dir=str(root), candidate_paths={k: str(v) for k, v in _paths(root).items()}, **values)
 
 
 def _io_reason(error: OSError) -> str:
@@ -551,30 +555,6 @@ def _verify_recovery(journal: dict[str, Any], op: _Operation) -> None:
         path = op.root / snapshot["path"]
         if not _matches(path, snapshot["fingerprint"], op) or _validate(path, op) != snapshot["history"]:
             raise _Problem("recovery_required", "snapshot_unverified")
-    canonical = _paths(op.root)["canonical"]
-    if journal["retained"]:
-        if _bundle(canonical, op) != journal["sources"]["canonical"]:
-            raise _Problem("recovery_required", "retained_winner_changed")
-    for move in journal["moves"]:
-        source, destination = (op.root / move[k] for k in ("source", "destination"))
-        fingerprint = journal["sources"][move["name"]][move["suffix"]]
-        before = _matches(source, fingerprint, op) and not destination.exists()
-        retired_source = not source.exists() or (move["name"] == "canonical" and move["suffix"] == "" and journal["publication_intent"] and _matches(source, journal["candidate_fingerprint"], op))
-        after = retired_source and _matches(destination, fingerprint, op)
-        if move["done"] and not after or not move["intent"] and not before or move["intent"] and not (before or after):
-            raise _Problem("recovery_required", "retirement_unverified")
-    candidate = op.root / journal["candidate"]
-    if journal["retained"]:
-        if not _matches(candidate, journal["candidate_fingerprint"], op):
-            raise _Problem("recovery_required", "candidate_unverified")
-    elif candidate.exists():
-        if not _matches(candidate, journal["candidate_fingerprint"], op):
-            raise _Problem("recovery_required", "candidate_unverified")
-        canonical_move = next((move for move in journal["moves"] if move["name"] == "canonical" and move["suffix"] == ""), None)
-        if canonical.exists() and (canonical_move is None or canonical_move["done"]):
-            raise _Problem("recovery_required", "unexpected_canonical")
-    elif not journal["publication_intent"] or not _matches(canonical, journal["candidate_fingerprint"], op) or any(Path(str(canonical) + suffix).exists() for suffix in SUFFIXES[1:]):
-        raise _Problem("recovery_required", "publication_unverified")
 
 
 def _resume(journal: dict[str, Any], op: _Operation, *, recovered: bool) -> KnowledgeResult:
@@ -583,6 +563,7 @@ def _resume(journal: dict[str, Any], op: _Operation, *, recovered: bool) -> Know
     pending = _pending_path(op.root)
     archive = op.root / "knowledge" / "backups" / journal["id"]
     _verify_recovery(journal, op)
+    op.history_verified = True
     if journal["phase"] == "PREPARED":
         journal["phase"] = "RETIRING"
         op.write_json(pending, journal, "journal.retiring")
@@ -634,7 +615,7 @@ def _resume(journal: dict[str, Any], op: _Operation, *, recovered: bool) -> Know
     pending.unlink()
     op.sync_directory(pending.parent)
     op.hit("pending.unlink.after")
-    return _result(op.root, journal["status"], phase="COMPLETED", migration_id=journal["id"], archive_path=str(archive), history_count=journal["history"]["count"], history_digest=journal["history"]["digest"], recovered=recovered, upgraded=journal["upgraded"])
+    return _result(op.root, journal["status"], phase="COMPLETED", migration_id=journal["id"], archive_path=str(archive), history_count=journal["history"]["count"], history_digest=journal["history"]["digest"], recovered=recovered, upgraded=journal["upgraded"], selected_source=journal["selected"], verification="passed")
 
 
 def _prepare(root: Path, op: _Operation) -> KnowledgeResult:
@@ -649,7 +630,7 @@ def _prepare(root: Path, op: _Operation) -> KnowledgeResult:
         selected, bundles, histories, warnings = _selection(root, op, Path(temp))
         if selected == "canonical" and not bundles["legacy"] and histories["canonical"]["schema"] == 14:
             history = histories["canonical"]
-            return _result(root, "canonical", warnings=warnings, history_count=history["count"], history_digest=history["digest"])
+            return _result(root, "canonical", warnings=warnings, history_count=history["count"], history_digest=history["digest"], selected_source=selected, verification="passed")
         migration_id = uuid.uuid4().hex
         archive = knowledge / "backups" / migration_id
         op.archive_path = archive
@@ -710,6 +691,7 @@ def _prepare(root: Path, op: _Operation) -> KnowledgeResult:
                 raise _Problem("migration_failed", "changed_source")
         journal = {"version": 1, "id": migration_id, "created_at": datetime.now(timezone.utc).isoformat(), "phase": "PREPARED", "selected": selected, "retained": retained, "sources": {name: bundle for name, bundle in bundles.items() if bundle}, "snapshots": snapshots, "candidate": str(candidate.relative_to(root)), "candidate_fingerprint": _fingerprint(candidate, op), "history": history, "moves": moves, "publication_intent": False, "status": "created" if selected is None else ("reconciled" if len(histories) == 2 else ("canonical" if selected == "canonical" else "migrated")), "upgraded": upgraded}
         op.journal = journal
+        op.history_verified = True
         op.write_json(pending, journal, "journal.prepared")
         result = _resume(journal, op, recovered=False)
         result.warnings = warnings
@@ -733,7 +715,8 @@ def prepare_knowledge(state_dir: Path | str, *, lease: RuntimeLease, deadline: f
     except (_Problem, OSError, sqlite3.Error) as error:
         status, reason = (error.status, error.reason) if isinstance(error, _Problem) else ("migration_failed", _io_reason(error) if isinstance(error, OSError) else "sqlite_error")
         journal = op.journal or {}
-        raise KnowledgePreparationError(_result(root, status, reason=reason, phase=op.durable_phase, migration_id=journal.get("id") or op.migration_id, archive_path=str(root / "knowledge" / "backups" / journal["id"]) if journal.get("id") else (str(op.archive_path) if op.archive_path is not None else None), journal_path=str(_pending_path(root)) if _pending_path(root).exists() else None)) from None
+        history = journal.get("history", {}) if op.history_verified else {}
+        raise KnowledgePreparationError(_result(root, status, reason=reason, phase=op.durable_phase, migration_id=journal.get("id") or op.migration_id, archive_path=str(root / "knowledge" / "backups" / journal["id"]) if journal.get("id") else (str(op.archive_path) if op.archive_path is not None else None), journal_path=str(_pending_path(root)) if _pending_path(root).exists() else None, selected_source=journal.get("selected"), history_count=history.get("count"), history_digest=history.get("digest"))) from None
 
 
 def inspect_knowledge(state_dir: Path | str, *, deadline: float | None = None) -> KnowledgeInspection:
@@ -763,13 +746,13 @@ def inspect_knowledge(state_dir: Path | str, *, deadline: float | None = None) -
                         if _validate(copy, op) != snapshot["history"]:
                             raise _Problem("recovery_required", "snapshot_unverified")
                     _verify_recovery_layout(journal, op)
-                result = _result(root, "recovery_pending", phase=journal["phase"], migration_id=journal["id"], archive_path=str(root / "knowledge" / "backups" / journal["id"]), journal_path=str(pending))
+                result = _result(root, "recovery_pending", phase=journal["phase"], migration_id=journal["id"], archive_path=str(root / "knowledge" / "backups" / journal["id"]), journal_path=str(pending), selected_source=journal["selected"], history_count=journal["history"]["count"], history_digest=journal["history"]["digest"], verification="passed")
             else:
                 with tempfile.TemporaryDirectory(prefix="agent-team-doctor-") as temp:
                     selected, bundles, histories, warnings = _selection(root, op, Path(temp))
                 status = "needs_initialization" if selected is None else ("canonical" if selected == "canonical" and not bundles["legacy"] and histories["canonical"]["schema"] == 14 else "migration_needed")
                 history = histories.get(selected, {})
-                result = _result(root, status, warnings=warnings, history_count=history.get("count"), history_digest=history.get("digest"))
+                result = _result(root, status, warnings=warnings, history_count=history.get("count"), history_digest=history.get("digest"), selected_source=selected, verification="passed")
             if not guard.still_guarded:
                 raise _Problem("inspection_unavailable", "existing_lock_changed")
             return KnowledgeInspection(result, "free", guard.owner)

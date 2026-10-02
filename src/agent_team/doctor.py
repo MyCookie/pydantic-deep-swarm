@@ -144,28 +144,40 @@ def diagnose(*, config_file=None,state_dir=None,workspace_dir=None,repo_root=Non
             add("models","failed",getattr(exc,"reason","model_unavailable"))
         if config.memory.enabled and config.memory.shared_knowledge:
             try:
-                from .memory.preparation import inspect_knowledge
-                inspection=inspect_knowledge(config.runtime.state_dir,deadline=deadline)
-                finding=inspection.result
-                report["runtime_observation"]["lease_status"]=inspection.lease_status
-                owner=getattr(inspection,"owner",None) or {}
-                report["runtime_observation"].update(owner_pid=owner.get("pid"),owner_started_at=owner.get("started_at"))
-                status="unverified" if finding.status in {"inspection_deferred","inspection_unavailable"} else "passed" if finding.status in {"canonical","needs_initialization","migration_needed","recovery_pending"} else "failed"
-                add("knowledge",status,finding.status,evidence=finding.as_dict(),remediation="Stop writers and preserve all database bundles and recovery evidence before offline repair." if status!="passed" else "")
-            except Exception:
-                add("knowledge","unverified","inspection_unavailable")
+                remaining()
+            except TimeoutError:
+                add("knowledge","unverified","deadline_exhausted")
+            else:
+                try:
+                    from .memory.preparation import inspect_knowledge
+                    inspection=inspect_knowledge(config.runtime.state_dir,deadline=deadline)
+                    finding=inspection.result
+                    report["runtime_observation"]["lease_status"]=inspection.lease_status
+                    owner=getattr(inspection,"owner",None) or {}
+                    report["runtime_observation"].update(owner_pid=owner.get("pid"),owner_started_at=owner.get("started_at"))
+                    status="unverified" if finding.status in {"inspection_deferred","inspection_unavailable"} else "passed" if finding.status in {"canonical","needs_initialization","migration_needed","recovery_pending"} else "failed"
+                    add("knowledge",status,finding.status,evidence=finding.as_dict(),remediation="Stop writers and preserve all database bundles and recovery evidence before offline repair." if status!="passed" else "")
+                except Exception:
+                    add("knowledge","failed","execution_error",detail="The knowledge diagnostic could not complete due to an internal execution error.",
+                        remediation="Preserve runtime state and recovery evidence; investigate the diagnostic implementation before retrying.")
         else:
             add("knowledge","not_selected","disabled",required=False)
             try:
-                from .persistence import RuntimeLeaseInspection
-                with RuntimeLeaseInspection(config.runtime.state_dir/"runtime.lock") as observation:
-                    report["runtime_observation"]["lease_status"]=observation.status
-                    owner=observation.owner or {}
-                    report["runtime_observation"].update(owner_pid=owner.get("pid"),owner_started_at=owner.get("started_at"))
-                if observation.status=="unavailable":
-                    add("lease","warning","lease_observation_unavailable",required=False)
-            except Exception:
-                add("lease","warning","lease_observation_unavailable",required=False)
+                remaining()
+            except TimeoutError:
+                add("lease","warning","deadline_exhausted",required=False)
+            else:
+                try:
+                    from .persistence import RuntimeLeaseInspection
+                    with RuntimeLeaseInspection(config.runtime.state_dir/"runtime.lock") as observation:
+                        report["runtime_observation"]["lease_status"]=observation.status
+                        owner=observation.owner or {}
+                        report["runtime_observation"].update(owner_pid=owner.get("pid"),owner_started_at=owner.get("started_at"))
+                    if observation.status=="unavailable":
+                        add("lease","warning","lease_observation_unavailable",required=False)
+                except Exception:
+                    add("lease","failed","execution_error",detail="The lease diagnostic could not complete due to an internal execution error.",
+                        remediation="Preserve runtime state and investigate the diagnostic implementation before retrying.")
     except TimeoutError:
         add("configuration","unverified","deadline_exhausted")
     except Exception:

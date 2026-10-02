@@ -160,7 +160,7 @@ def main() -> int:
                                          "--repo-root", str(repo), "--report", str(report)], clone, timeout=180)
                 summary["lanes"][lane] = json.loads(report.read_text())
             builds = root / "builds"
-            command("wheel-build", [uv, "build", "--verbose", "--no-sources", "--out-dir", str(builds)], clone)
+            command("wheel-build", [uv, "build", "--verbose", "--force-pep517", "--no-sources", "--out-dir", str(builds)], clone)
             build_log = (reports / "wheel-build.stderr.log").read_text()
             backend_versions = re.findall(r"uv[-_]build(?:==|[- ])(\d+\.\d+\.\d+)", build_log)
             if not backend_versions:

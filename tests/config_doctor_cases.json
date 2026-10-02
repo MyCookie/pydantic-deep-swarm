@@ -11445,6 +11445,2310 @@
       }
     },
     {
+      "id": "doctor_contract.cli_inspector_execution_errors_are_required_failures.f02cef4c44b7",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_inspector_execution_errors_are_required_failures[runtime-disabled_lease-text]"
+      ],
+      "setup": {
+        "test": "test_cli_inspector_execution_errors_are_required_failures",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "error_type": {
+            "type": "type",
+            "fixture_value_sha256": "9b9d60c6518d4a8677ecce6c102f06dabc6438838e5e774c34147515fc13ba64"
+          },
+          "enabled": false,
+          "as_json": false
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_inspector_execution_errors_are_required_failures[runtime-disabled_lease-text]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "calls.append",
+          "destination.read_text",
+          "error_type",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == 1",
+          "(finding['status'], finding['reason'], finding['required']) == ('failed', 'execution_error', True)",
+          "report['outcome'] == 'blocked' and report['validation_complete'] is True",
+          "finding['detail'] and finding['remediation'] and (finding['evidence'] == {})",
+          "'<redacted-test-value>' not in result.output + destination.read_text()",
+          "json.loads(result.stdout) == report",
+          "'execution_error' in result.stdout and 'blocked (exit 1)' in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "c5a1e583592087099c90f40c3cf81b31b1a4f2777d9b9ffa4033255430f8ea56"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_inspector_execution_errors_are_required_failures.29ed437c78f7",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_inspector_execution_errors_are_required_failures[runtime-disabled_lease-json]"
+      ],
+      "setup": {
+        "test": "test_cli_inspector_execution_errors_are_required_failures",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "error_type": {
+            "type": "type",
+            "fixture_value_sha256": "9b9d60c6518d4a8677ecce6c102f06dabc6438838e5e774c34147515fc13ba64"
+          },
+          "enabled": false,
+          "as_json": true
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_inspector_execution_errors_are_required_failures[runtime-disabled_lease-json]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "calls.append",
+          "destination.read_text",
+          "error_type",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == 1",
+          "(finding['status'], finding['reason'], finding['required']) == ('failed', 'execution_error', True)",
+          "report['outcome'] == 'blocked' and report['validation_complete'] is True",
+          "finding['detail'] and finding['remediation'] and (finding['evidence'] == {})",
+          "'<redacted-test-value>' not in result.output + destination.read_text()",
+          "json.loads(result.stdout) == report",
+          "'execution_error' in result.stdout and 'blocked (exit 1)' in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "c5a1e583592087099c90f40c3cf81b31b1a4f2777d9b9ffa4033255430f8ea56"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_inspector_execution_errors_are_required_failures.b83378299e32",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_inspector_execution_errors_are_required_failures[runtime-enabled_knowledge-text]"
+      ],
+      "setup": {
+        "test": "test_cli_inspector_execution_errors_are_required_failures",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "error_type": {
+            "type": "type",
+            "fixture_value_sha256": "9b9d60c6518d4a8677ecce6c102f06dabc6438838e5e774c34147515fc13ba64"
+          },
+          "enabled": true,
+          "as_json": false
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_inspector_execution_errors_are_required_failures[runtime-enabled_knowledge-text]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "calls.append",
+          "destination.read_text",
+          "error_type",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == 1",
+          "(finding['status'], finding['reason'], finding['required']) == ('failed', 'execution_error', True)",
+          "report['outcome'] == 'blocked' and report['validation_complete'] is True",
+          "finding['detail'] and finding['remediation'] and (finding['evidence'] == {})",
+          "'<redacted-test-value>' not in result.output + destination.read_text()",
+          "json.loads(result.stdout) == report",
+          "'execution_error' in result.stdout and 'blocked (exit 1)' in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "c5a1e583592087099c90f40c3cf81b31b1a4f2777d9b9ffa4033255430f8ea56"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_inspector_execution_errors_are_required_failures.924f49351635",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_inspector_execution_errors_are_required_failures[runtime-enabled_knowledge-json]"
+      ],
+      "setup": {
+        "test": "test_cli_inspector_execution_errors_are_required_failures",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "error_type": {
+            "type": "type",
+            "fixture_value_sha256": "9b9d60c6518d4a8677ecce6c102f06dabc6438838e5e774c34147515fc13ba64"
+          },
+          "enabled": true,
+          "as_json": true
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_inspector_execution_errors_are_required_failures[runtime-enabled_knowledge-json]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "calls.append",
+          "destination.read_text",
+          "error_type",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == 1",
+          "(finding['status'], finding['reason'], finding['required']) == ('failed', 'execution_error', True)",
+          "report['outcome'] == 'blocked' and report['validation_complete'] is True",
+          "finding['detail'] and finding['remediation'] and (finding['evidence'] == {})",
+          "'<redacted-test-value>' not in result.output + destination.read_text()",
+          "json.loads(result.stdout) == report",
+          "'execution_error' in result.stdout and 'blocked (exit 1)' in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "c5a1e583592087099c90f40c3cf81b31b1a4f2777d9b9ffa4033255430f8ea56"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_inspector_execution_errors_are_required_failures.7f81a7ecfc1f",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_inspector_execution_errors_are_required_failures[attribute-disabled_lease-text]"
+      ],
+      "setup": {
+        "test": "test_cli_inspector_execution_errors_are_required_failures",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "error_type": {
+            "type": "type",
+            "fixture_value_sha256": "aa012bb0575c908dcec366fb206dc5c892aecba38338a80d0af088faa2536b4d"
+          },
+          "enabled": false,
+          "as_json": false
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_inspector_execution_errors_are_required_failures[attribute-disabled_lease-text]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "calls.append",
+          "destination.read_text",
+          "error_type",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == 1",
+          "(finding['status'], finding['reason'], finding['required']) == ('failed', 'execution_error', True)",
+          "report['outcome'] == 'blocked' and report['validation_complete'] is True",
+          "finding['detail'] and finding['remediation'] and (finding['evidence'] == {})",
+          "'<redacted-test-value>' not in result.output + destination.read_text()",
+          "json.loads(result.stdout) == report",
+          "'execution_error' in result.stdout and 'blocked (exit 1)' in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "c5a1e583592087099c90f40c3cf81b31b1a4f2777d9b9ffa4033255430f8ea56"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_inspector_execution_errors_are_required_failures.49639a40c4fc",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_inspector_execution_errors_are_required_failures[attribute-disabled_lease-json]"
+      ],
+      "setup": {
+        "test": "test_cli_inspector_execution_errors_are_required_failures",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "error_type": {
+            "type": "type",
+            "fixture_value_sha256": "aa012bb0575c908dcec366fb206dc5c892aecba38338a80d0af088faa2536b4d"
+          },
+          "enabled": false,
+          "as_json": true
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_inspector_execution_errors_are_required_failures[attribute-disabled_lease-json]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "calls.append",
+          "destination.read_text",
+          "error_type",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == 1",
+          "(finding['status'], finding['reason'], finding['required']) == ('failed', 'execution_error', True)",
+          "report['outcome'] == 'blocked' and report['validation_complete'] is True",
+          "finding['detail'] and finding['remediation'] and (finding['evidence'] == {})",
+          "'<redacted-test-value>' not in result.output + destination.read_text()",
+          "json.loads(result.stdout) == report",
+          "'execution_error' in result.stdout and 'blocked (exit 1)' in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "c5a1e583592087099c90f40c3cf81b31b1a4f2777d9b9ffa4033255430f8ea56"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_inspector_execution_errors_are_required_failures.7d2678a0dbcb",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_inspector_execution_errors_are_required_failures[attribute-enabled_knowledge-text]"
+      ],
+      "setup": {
+        "test": "test_cli_inspector_execution_errors_are_required_failures",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "error_type": {
+            "type": "type",
+            "fixture_value_sha256": "aa012bb0575c908dcec366fb206dc5c892aecba38338a80d0af088faa2536b4d"
+          },
+          "enabled": true,
+          "as_json": false
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_inspector_execution_errors_are_required_failures[attribute-enabled_knowledge-text]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "calls.append",
+          "destination.read_text",
+          "error_type",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == 1",
+          "(finding['status'], finding['reason'], finding['required']) == ('failed', 'execution_error', True)",
+          "report['outcome'] == 'blocked' and report['validation_complete'] is True",
+          "finding['detail'] and finding['remediation'] and (finding['evidence'] == {})",
+          "'<redacted-test-value>' not in result.output + destination.read_text()",
+          "json.loads(result.stdout) == report",
+          "'execution_error' in result.stdout and 'blocked (exit 1)' in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "c5a1e583592087099c90f40c3cf81b31b1a4f2777d9b9ffa4033255430f8ea56"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_inspector_execution_errors_are_required_failures.c7f4d3018d66",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_inspector_execution_errors_are_required_failures[attribute-enabled_knowledge-json]"
+      ],
+      "setup": {
+        "test": "test_cli_inspector_execution_errors_are_required_failures",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "error_type": {
+            "type": "type",
+            "fixture_value_sha256": "aa012bb0575c908dcec366fb206dc5c892aecba38338a80d0af088faa2536b4d"
+          },
+          "enabled": true,
+          "as_json": true
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_inspector_execution_errors_are_required_failures[attribute-enabled_knowledge-json]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "calls.append",
+          "destination.read_text",
+          "error_type",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == 1",
+          "(finding['status'], finding['reason'], finding['required']) == ('failed', 'execution_error', True)",
+          "report['outcome'] == 'blocked' and report['validation_complete'] is True",
+          "finding['detail'] and finding['remediation'] and (finding['evidence'] == {})",
+          "'<redacted-test-value>' not in result.output + destination.read_text()",
+          "json.loads(result.stdout) == report",
+          "'execution_error' in result.stdout and 'blocked (exit 1)' in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "c5a1e583592087099c90f40c3cf81b31b1a4f2777d9b9ffa4033255430f8ea56"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_inspector_execution_errors_are_required_failures.44578a2714ad",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_inspector_execution_errors_are_required_failures[timeout-disabled_lease-text]"
+      ],
+      "setup": {
+        "test": "test_cli_inspector_execution_errors_are_required_failures",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "error_type": {
+            "type": "type",
+            "fixture_value_sha256": "1359c1c2b582a8a3c3deaac406a4759fdce5fde3207856748cae1d48a01eb5d1"
+          },
+          "enabled": false,
+          "as_json": false
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_inspector_execution_errors_are_required_failures[timeout-disabled_lease-text]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "calls.append",
+          "destination.read_text",
+          "error_type",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == 1",
+          "(finding['status'], finding['reason'], finding['required']) == ('failed', 'execution_error', True)",
+          "report['outcome'] == 'blocked' and report['validation_complete'] is True",
+          "finding['detail'] and finding['remediation'] and (finding['evidence'] == {})",
+          "'<redacted-test-value>' not in result.output + destination.read_text()",
+          "json.loads(result.stdout) == report",
+          "'execution_error' in result.stdout and 'blocked (exit 1)' in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "c5a1e583592087099c90f40c3cf81b31b1a4f2777d9b9ffa4033255430f8ea56"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_inspector_execution_errors_are_required_failures.5026272724ea",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_inspector_execution_errors_are_required_failures[timeout-disabled_lease-json]"
+      ],
+      "setup": {
+        "test": "test_cli_inspector_execution_errors_are_required_failures",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "error_type": {
+            "type": "type",
+            "fixture_value_sha256": "1359c1c2b582a8a3c3deaac406a4759fdce5fde3207856748cae1d48a01eb5d1"
+          },
+          "enabled": false,
+          "as_json": true
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_inspector_execution_errors_are_required_failures[timeout-disabled_lease-json]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "calls.append",
+          "destination.read_text",
+          "error_type",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == 1",
+          "(finding['status'], finding['reason'], finding['required']) == ('failed', 'execution_error', True)",
+          "report['outcome'] == 'blocked' and report['validation_complete'] is True",
+          "finding['detail'] and finding['remediation'] and (finding['evidence'] == {})",
+          "'<redacted-test-value>' not in result.output + destination.read_text()",
+          "json.loads(result.stdout) == report",
+          "'execution_error' in result.stdout and 'blocked (exit 1)' in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "c5a1e583592087099c90f40c3cf81b31b1a4f2777d9b9ffa4033255430f8ea56"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_inspector_execution_errors_are_required_failures.a17dfbde00ee",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_inspector_execution_errors_are_required_failures[timeout-enabled_knowledge-text]"
+      ],
+      "setup": {
+        "test": "test_cli_inspector_execution_errors_are_required_failures",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "error_type": {
+            "type": "type",
+            "fixture_value_sha256": "1359c1c2b582a8a3c3deaac406a4759fdce5fde3207856748cae1d48a01eb5d1"
+          },
+          "enabled": true,
+          "as_json": false
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_inspector_execution_errors_are_required_failures[timeout-enabled_knowledge-text]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "calls.append",
+          "destination.read_text",
+          "error_type",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == 1",
+          "(finding['status'], finding['reason'], finding['required']) == ('failed', 'execution_error', True)",
+          "report['outcome'] == 'blocked' and report['validation_complete'] is True",
+          "finding['detail'] and finding['remediation'] and (finding['evidence'] == {})",
+          "'<redacted-test-value>' not in result.output + destination.read_text()",
+          "json.loads(result.stdout) == report",
+          "'execution_error' in result.stdout and 'blocked (exit 1)' in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "c5a1e583592087099c90f40c3cf81b31b1a4f2777d9b9ffa4033255430f8ea56"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_inspector_execution_errors_are_required_failures.23bbda1bae8e",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_inspector_execution_errors_are_required_failures[timeout-enabled_knowledge-json]"
+      ],
+      "setup": {
+        "test": "test_cli_inspector_execution_errors_are_required_failures",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "error_type": {
+            "type": "type",
+            "fixture_value_sha256": "1359c1c2b582a8a3c3deaac406a4759fdce5fde3207856748cae1d48a01eb5d1"
+          },
+          "enabled": true,
+          "as_json": true
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_inspector_execution_errors_are_required_failures[timeout-enabled_knowledge-json]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "calls.append",
+          "destination.read_text",
+          "error_type",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == 1",
+          "(finding['status'], finding['reason'], finding['required']) == ('failed', 'execution_error', True)",
+          "report['outcome'] == 'blocked' and report['validation_complete'] is True",
+          "finding['detail'] and finding['remediation'] and (finding['evidence'] == {})",
+          "'<redacted-test-value>' not in result.output + destination.read_text()",
+          "json.loads(result.stdout) == report",
+          "'execution_error' in result.stdout and 'blocked (exit 1)' in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "c5a1e583592087099c90f40c3cf81b31b1a4f2777d9b9ffa4033255430f8ea56"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_budget_prevents_inspection_without_relabelling_configuration.2307b014377d",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_budget_prevents_inspection_without_relabelling_configuration[disabled_lease-text]"
+      ],
+      "setup": {
+        "test": "test_cli_budget_prevents_inspection_without_relabelling_configuration",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "enabled": false,
+          "as_json": false
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_budget_prevents_inspection_without_relabelling_configuration[disabled_lease-text]",
+        "called_functions": [
+          "AssertionError",
+          "CliRunner",
+          "CliRunner().invoke",
+          "calls.append",
+          "destination.read_text",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == []",
+          "result.exit_code == report['exit_code'] == (2 if enabled else 0)",
+          "(finding['status'], finding['reason'], finding['required']) == ('unverified' if enabled else 'warning', 'deadline_exhausted', enabled)",
+          "report['validation_complete'] is (not enabled)",
+          "[(c['status'], c['reason']) for c in report['checks'] if c['id'] == 'configuration'] == [('passed', 'configuration_valid')]",
+          "json.loads(result.stdout) == report",
+          "'deadline_exhausted' in result.stdout and f\"(exit {report['exit_code']})\" in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "b87d86ac08897557c92d7a34dbb7dca6b2697b947e1bb58c74a165903cdf1131"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_budget_prevents_inspection_without_relabelling_configuration.313a4798c567",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_budget_prevents_inspection_without_relabelling_configuration[disabled_lease-json]"
+      ],
+      "setup": {
+        "test": "test_cli_budget_prevents_inspection_without_relabelling_configuration",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "enabled": false,
+          "as_json": true
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_budget_prevents_inspection_without_relabelling_configuration[disabled_lease-json]",
+        "called_functions": [
+          "AssertionError",
+          "CliRunner",
+          "CliRunner().invoke",
+          "calls.append",
+          "destination.read_text",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == []",
+          "result.exit_code == report['exit_code'] == (2 if enabled else 0)",
+          "(finding['status'], finding['reason'], finding['required']) == ('unverified' if enabled else 'warning', 'deadline_exhausted', enabled)",
+          "report['validation_complete'] is (not enabled)",
+          "[(c['status'], c['reason']) for c in report['checks'] if c['id'] == 'configuration'] == [('passed', 'configuration_valid')]",
+          "json.loads(result.stdout) == report",
+          "'deadline_exhausted' in result.stdout and f\"(exit {report['exit_code']})\" in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "b87d86ac08897557c92d7a34dbb7dca6b2697b947e1bb58c74a165903cdf1131"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_budget_prevents_inspection_without_relabelling_configuration.f89f05148744",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_budget_prevents_inspection_without_relabelling_configuration[enabled_knowledge-text]"
+      ],
+      "setup": {
+        "test": "test_cli_budget_prevents_inspection_without_relabelling_configuration",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "enabled": true,
+          "as_json": false
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_budget_prevents_inspection_without_relabelling_configuration[enabled_knowledge-text]",
+        "called_functions": [
+          "AssertionError",
+          "CliRunner",
+          "CliRunner().invoke",
+          "calls.append",
+          "destination.read_text",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == []",
+          "result.exit_code == report['exit_code'] == (2 if enabled else 0)",
+          "(finding['status'], finding['reason'], finding['required']) == ('unverified' if enabled else 'warning', 'deadline_exhausted', enabled)",
+          "report['validation_complete'] is (not enabled)",
+          "[(c['status'], c['reason']) for c in report['checks'] if c['id'] == 'configuration'] == [('passed', 'configuration_valid')]",
+          "json.loads(result.stdout) == report",
+          "'deadline_exhausted' in result.stdout and f\"(exit {report['exit_code']})\" in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "b87d86ac08897557c92d7a34dbb7dca6b2697b947e1bb58c74a165903cdf1131"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_budget_prevents_inspection_without_relabelling_configuration.ef716a174f41",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_budget_prevents_inspection_without_relabelling_configuration[enabled_knowledge-json]"
+      ],
+      "setup": {
+        "test": "test_cli_budget_prevents_inspection_without_relabelling_configuration",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "enabled": true,
+          "as_json": true
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_budget_prevents_inspection_without_relabelling_configuration[enabled_knowledge-json]",
+        "called_functions": [
+          "AssertionError",
+          "CliRunner",
+          "CliRunner().invoke",
+          "calls.append",
+          "destination.read_text",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == []",
+          "result.exit_code == report['exit_code'] == (2 if enabled else 0)",
+          "(finding['status'], finding['reason'], finding['required']) == ('unverified' if enabled else 'warning', 'deadline_exhausted', enabled)",
+          "report['validation_complete'] is (not enabled)",
+          "[(c['status'], c['reason']) for c in report['checks'] if c['id'] == 'configuration'] == [('passed', 'configuration_valid')]",
+          "json.loads(result.stdout) == report",
+          "'deadline_exhausted' in result.stdout and f\"(exit {report['exit_code']})\" in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "b87d86ac08897557c92d7a34dbb7dca6b2697b947e1bb58c74a165903cdf1131"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_structured_inspection_unknown_preserves_failure_precedence.c515d2150940",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_structured_inspection_unknown_preserves_failure_precedence[inspection_unavailable-deadline_exceeded-no_prior_failure-text]"
+      ],
+      "setup": {
+        "test": "test_cli_structured_inspection_unknown_preserves_failure_precedence",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "status": "inspection_unavailable",
+          "reason": "deadline_exceeded",
+          "prior_failure": false,
+          "as_json": false
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_structured_inspection_unknown_preserves_failure_precedence[inspection_unavailable-deadline_exceeded-no_prior_failure-text]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "KnowledgeInspection",
+          "KnowledgeResult",
+          "RuntimeError",
+          "any",
+          "calls.append",
+          "destination.read_text",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == (1 if prior_failure else 2)",
+          "(finding['status'], finding['reason'], finding['required']) == ('unverified', status, True)",
+          "finding['evidence']['reason'] == reason and report['validation_complete'] is False",
+          "not any((c['reason'] == 'execution_error' for c in report['checks']))",
+          "'<redacted-test-value>' not in result.output + destination.read_text()",
+          "json.loads(result.stdout) == report",
+          "status in result.stdout and f\"(exit {report['exit_code']})\" in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "eacf823729f29a7a192ab9b6197591fc44d3a6b13b8e39171f2ef1753cbb9807"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_structured_inspection_unknown_preserves_failure_precedence.4632c9a657f7",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_structured_inspection_unknown_preserves_failure_precedence[inspection_unavailable-deadline_exceeded-no_prior_failure-json]"
+      ],
+      "setup": {
+        "test": "test_cli_structured_inspection_unknown_preserves_failure_precedence",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "status": "inspection_unavailable",
+          "reason": "deadline_exceeded",
+          "prior_failure": false,
+          "as_json": true
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_structured_inspection_unknown_preserves_failure_precedence[inspection_unavailable-deadline_exceeded-no_prior_failure-json]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "KnowledgeInspection",
+          "KnowledgeResult",
+          "RuntimeError",
+          "any",
+          "calls.append",
+          "destination.read_text",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == (1 if prior_failure else 2)",
+          "(finding['status'], finding['reason'], finding['required']) == ('unverified', status, True)",
+          "finding['evidence']['reason'] == reason and report['validation_complete'] is False",
+          "not any((c['reason'] == 'execution_error' for c in report['checks']))",
+          "'<redacted-test-value>' not in result.output + destination.read_text()",
+          "json.loads(result.stdout) == report",
+          "status in result.stdout and f\"(exit {report['exit_code']})\" in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "eacf823729f29a7a192ab9b6197591fc44d3a6b13b8e39171f2ef1753cbb9807"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_structured_inspection_unknown_preserves_failure_precedence.aa01b32443a8",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_structured_inspection_unknown_preserves_failure_precedence[inspection_unavailable-deadline_exceeded-prior_failure-text]"
+      ],
+      "setup": {
+        "test": "test_cli_structured_inspection_unknown_preserves_failure_precedence",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "status": "inspection_unavailable",
+          "reason": "deadline_exceeded",
+          "prior_failure": true,
+          "as_json": false
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_structured_inspection_unknown_preserves_failure_precedence[inspection_unavailable-deadline_exceeded-prior_failure-text]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "KnowledgeInspection",
+          "KnowledgeResult",
+          "RuntimeError",
+          "any",
+          "calls.append",
+          "destination.read_text",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == (1 if prior_failure else 2)",
+          "(finding['status'], finding['reason'], finding['required']) == ('unverified', status, True)",
+          "finding['evidence']['reason'] == reason and report['validation_complete'] is False",
+          "not any((c['reason'] == 'execution_error' for c in report['checks']))",
+          "'<redacted-test-value>' not in result.output + destination.read_text()",
+          "json.loads(result.stdout) == report",
+          "status in result.stdout and f\"(exit {report['exit_code']})\" in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "eacf823729f29a7a192ab9b6197591fc44d3a6b13b8e39171f2ef1753cbb9807"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_structured_inspection_unknown_preserves_failure_precedence.a89501c68d5d",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_structured_inspection_unknown_preserves_failure_precedence[inspection_unavailable-deadline_exceeded-prior_failure-json]"
+      ],
+      "setup": {
+        "test": "test_cli_structured_inspection_unknown_preserves_failure_precedence",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "status": "inspection_unavailable",
+          "reason": "deadline_exceeded",
+          "prior_failure": true,
+          "as_json": true
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_structured_inspection_unknown_preserves_failure_precedence[inspection_unavailable-deadline_exceeded-prior_failure-json]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "KnowledgeInspection",
+          "KnowledgeResult",
+          "RuntimeError",
+          "any",
+          "calls.append",
+          "destination.read_text",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == (1 if prior_failure else 2)",
+          "(finding['status'], finding['reason'], finding['required']) == ('unverified', status, True)",
+          "finding['evidence']['reason'] == reason and report['validation_complete'] is False",
+          "not any((c['reason'] == 'execution_error' for c in report['checks']))",
+          "'<redacted-test-value>' not in result.output + destination.read_text()",
+          "json.loads(result.stdout) == report",
+          "status in result.stdout and f\"(exit {report['exit_code']})\" in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "eacf823729f29a7a192ab9b6197591fc44d3a6b13b8e39171f2ef1753cbb9807"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_structured_inspection_unknown_preserves_failure_precedence.6b9eb64aacea",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_structured_inspection_unknown_preserves_failure_precedence[inspection_unavailable-coherent_copy_unavailable-no_prior_failure-text]"
+      ],
+      "setup": {
+        "test": "test_cli_structured_inspection_unknown_preserves_failure_precedence",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "status": "inspection_unavailable",
+          "reason": "coherent_copy_unavailable",
+          "prior_failure": false,
+          "as_json": false
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_structured_inspection_unknown_preserves_failure_precedence[inspection_unavailable-coherent_copy_unavailable-no_prior_failure-text]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "KnowledgeInspection",
+          "KnowledgeResult",
+          "RuntimeError",
+          "any",
+          "calls.append",
+          "destination.read_text",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == (1 if prior_failure else 2)",
+          "(finding['status'], finding['reason'], finding['required']) == ('unverified', status, True)",
+          "finding['evidence']['reason'] == reason and report['validation_complete'] is False",
+          "not any((c['reason'] == 'execution_error' for c in report['checks']))",
+          "'<redacted-test-value>' not in result.output + destination.read_text()",
+          "json.loads(result.stdout) == report",
+          "status in result.stdout and f\"(exit {report['exit_code']})\" in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "eacf823729f29a7a192ab9b6197591fc44d3a6b13b8e39171f2ef1753cbb9807"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_structured_inspection_unknown_preserves_failure_precedence.961200644525",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_structured_inspection_unknown_preserves_failure_precedence[inspection_unavailable-coherent_copy_unavailable-no_prior_failure-json]"
+      ],
+      "setup": {
+        "test": "test_cli_structured_inspection_unknown_preserves_failure_precedence",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "status": "inspection_unavailable",
+          "reason": "coherent_copy_unavailable",
+          "prior_failure": false,
+          "as_json": true
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_structured_inspection_unknown_preserves_failure_precedence[inspection_unavailable-coherent_copy_unavailable-no_prior_failure-json]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "KnowledgeInspection",
+          "KnowledgeResult",
+          "RuntimeError",
+          "any",
+          "calls.append",
+          "destination.read_text",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == (1 if prior_failure else 2)",
+          "(finding['status'], finding['reason'], finding['required']) == ('unverified', status, True)",
+          "finding['evidence']['reason'] == reason and report['validation_complete'] is False",
+          "not any((c['reason'] == 'execution_error' for c in report['checks']))",
+          "'<redacted-test-value>' not in result.output + destination.read_text()",
+          "json.loads(result.stdout) == report",
+          "status in result.stdout and f\"(exit {report['exit_code']})\" in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "eacf823729f29a7a192ab9b6197591fc44d3a6b13b8e39171f2ef1753cbb9807"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_structured_inspection_unknown_preserves_failure_precedence.110b9a80db00",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_structured_inspection_unknown_preserves_failure_precedence[inspection_unavailable-coherent_copy_unavailable-prior_failure-text]"
+      ],
+      "setup": {
+        "test": "test_cli_structured_inspection_unknown_preserves_failure_precedence",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "status": "inspection_unavailable",
+          "reason": "coherent_copy_unavailable",
+          "prior_failure": true,
+          "as_json": false
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_structured_inspection_unknown_preserves_failure_precedence[inspection_unavailable-coherent_copy_unavailable-prior_failure-text]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "KnowledgeInspection",
+          "KnowledgeResult",
+          "RuntimeError",
+          "any",
+          "calls.append",
+          "destination.read_text",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == (1 if prior_failure else 2)",
+          "(finding['status'], finding['reason'], finding['required']) == ('unverified', status, True)",
+          "finding['evidence']['reason'] == reason and report['validation_complete'] is False",
+          "not any((c['reason'] == 'execution_error' for c in report['checks']))",
+          "'<redacted-test-value>' not in result.output + destination.read_text()",
+          "json.loads(result.stdout) == report",
+          "status in result.stdout and f\"(exit {report['exit_code']})\" in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "eacf823729f29a7a192ab9b6197591fc44d3a6b13b8e39171f2ef1753cbb9807"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_structured_inspection_unknown_preserves_failure_precedence.5dd20e5cf6d7",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_structured_inspection_unknown_preserves_failure_precedence[inspection_unavailable-coherent_copy_unavailable-prior_failure-json]"
+      ],
+      "setup": {
+        "test": "test_cli_structured_inspection_unknown_preserves_failure_precedence",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "status": "inspection_unavailable",
+          "reason": "coherent_copy_unavailable",
+          "prior_failure": true,
+          "as_json": true
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_structured_inspection_unknown_preserves_failure_precedence[inspection_unavailable-coherent_copy_unavailable-prior_failure-json]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "KnowledgeInspection",
+          "KnowledgeResult",
+          "RuntimeError",
+          "any",
+          "calls.append",
+          "destination.read_text",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == (1 if prior_failure else 2)",
+          "(finding['status'], finding['reason'], finding['required']) == ('unverified', status, True)",
+          "finding['evidence']['reason'] == reason and report['validation_complete'] is False",
+          "not any((c['reason'] == 'execution_error' for c in report['checks']))",
+          "'<redacted-test-value>' not in result.output + destination.read_text()",
+          "json.loads(result.stdout) == report",
+          "status in result.stdout and f\"(exit {report['exit_code']})\" in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "eacf823729f29a7a192ab9b6197591fc44d3a6b13b8e39171f2ef1753cbb9807"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_structured_inspection_unknown_preserves_failure_precedence.d3e29e12aaca",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_structured_inspection_unknown_preserves_failure_precedence[inspection_deferred-runtime_occupied-no_prior_failure-text]"
+      ],
+      "setup": {
+        "test": "test_cli_structured_inspection_unknown_preserves_failure_precedence",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "status": "inspection_deferred",
+          "reason": "runtime_occupied",
+          "prior_failure": false,
+          "as_json": false
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_structured_inspection_unknown_preserves_failure_precedence[inspection_deferred-runtime_occupied-no_prior_failure-text]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "KnowledgeInspection",
+          "KnowledgeResult",
+          "RuntimeError",
+          "any",
+          "calls.append",
+          "destination.read_text",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == (1 if prior_failure else 2)",
+          "(finding['status'], finding['reason'], finding['required']) == ('unverified', status, True)",
+          "finding['evidence']['reason'] == reason and report['validation_complete'] is False",
+          "not any((c['reason'] == 'execution_error' for c in report['checks']))",
+          "'<redacted-test-value>' not in result.output + destination.read_text()",
+          "json.loads(result.stdout) == report",
+          "status in result.stdout and f\"(exit {report['exit_code']})\" in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "eacf823729f29a7a192ab9b6197591fc44d3a6b13b8e39171f2ef1753cbb9807"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_structured_inspection_unknown_preserves_failure_precedence.3bf4c18567c1",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_structured_inspection_unknown_preserves_failure_precedence[inspection_deferred-runtime_occupied-no_prior_failure-json]"
+      ],
+      "setup": {
+        "test": "test_cli_structured_inspection_unknown_preserves_failure_precedence",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "status": "inspection_deferred",
+          "reason": "runtime_occupied",
+          "prior_failure": false,
+          "as_json": true
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_structured_inspection_unknown_preserves_failure_precedence[inspection_deferred-runtime_occupied-no_prior_failure-json]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "KnowledgeInspection",
+          "KnowledgeResult",
+          "RuntimeError",
+          "any",
+          "calls.append",
+          "destination.read_text",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == (1 if prior_failure else 2)",
+          "(finding['status'], finding['reason'], finding['required']) == ('unverified', status, True)",
+          "finding['evidence']['reason'] == reason and report['validation_complete'] is False",
+          "not any((c['reason'] == 'execution_error' for c in report['checks']))",
+          "'<redacted-test-value>' not in result.output + destination.read_text()",
+          "json.loads(result.stdout) == report",
+          "status in result.stdout and f\"(exit {report['exit_code']})\" in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "eacf823729f29a7a192ab9b6197591fc44d3a6b13b8e39171f2ef1753cbb9807"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_structured_inspection_unknown_preserves_failure_precedence.a51da89de816",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_structured_inspection_unknown_preserves_failure_precedence[inspection_deferred-runtime_occupied-prior_failure-text]"
+      ],
+      "setup": {
+        "test": "test_cli_structured_inspection_unknown_preserves_failure_precedence",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "status": "inspection_deferred",
+          "reason": "runtime_occupied",
+          "prior_failure": true,
+          "as_json": false
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_structured_inspection_unknown_preserves_failure_precedence[inspection_deferred-runtime_occupied-prior_failure-text]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "KnowledgeInspection",
+          "KnowledgeResult",
+          "RuntimeError",
+          "any",
+          "calls.append",
+          "destination.read_text",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == (1 if prior_failure else 2)",
+          "(finding['status'], finding['reason'], finding['required']) == ('unverified', status, True)",
+          "finding['evidence']['reason'] == reason and report['validation_complete'] is False",
+          "not any((c['reason'] == 'execution_error' for c in report['checks']))",
+          "'<redacted-test-value>' not in result.output + destination.read_text()",
+          "json.loads(result.stdout) == report",
+          "status in result.stdout and f\"(exit {report['exit_code']})\" in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "eacf823729f29a7a192ab9b6197591fc44d3a6b13b8e39171f2ef1753cbb9807"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_structured_inspection_unknown_preserves_failure_precedence.bd093cdfaee1",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_structured_inspection_unknown_preserves_failure_precedence[inspection_deferred-runtime_occupied-prior_failure-json]"
+      ],
+      "setup": {
+        "test": "test_cli_structured_inspection_unknown_preserves_failure_precedence",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "status": "inspection_deferred",
+          "reason": "runtime_occupied",
+          "prior_failure": true,
+          "as_json": true
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_structured_inspection_unknown_preserves_failure_precedence[inspection_deferred-runtime_occupied-prior_failure-json]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "KnowledgeInspection",
+          "KnowledgeResult",
+          "RuntimeError",
+          "any",
+          "calls.append",
+          "destination.read_text",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == (1 if prior_failure else 2)",
+          "(finding['status'], finding['reason'], finding['required']) == ('unverified', status, True)",
+          "finding['evidence']['reason'] == reason and report['validation_complete'] is False",
+          "not any((c['reason'] == 'execution_error' for c in report['checks']))",
+          "'<redacted-test-value>' not in result.output + destination.read_text()",
+          "json.loads(result.stdout) == report",
+          "status in result.stdout and f\"(exit {report['exit_code']})\" in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "eacf823729f29a7a192ab9b6197591fc44d3a6b13b8e39171f2ef1753cbb9807"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_disabled_expected_lease_unavailable_stays_optional.c3bfa4a37652",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_disabled_expected_lease_unavailable_stays_optional[text]"
+      ],
+      "setup": {
+        "test": "test_cli_disabled_expected_lease_unavailable_stays_optional",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "as_json": false
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_disabled_expected_lease_unavailable_stays_optional[text]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "calls.append",
+          "destination.read_text",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "pytest.mark.parametrize",
+          "str"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == 0",
+          "(finding['status'], finding['reason'], finding['required']) == ('warning', 'lease_observation_unavailable', False)",
+          "report['validation_complete'] is True and report['runtime_observation']['lease_status'] == 'unavailable'",
+          "json.loads(result.stdout) == report",
+          "'lease_observation_unavailable' in result.stdout and 'validated (exit 0)' in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "1ab7281a6643af41bfca1b265e68a0fe6298cff162ab93173ba8b4af0ee5d594"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_disabled_expected_lease_unavailable_stays_optional.7528f5d687a4",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_disabled_expected_lease_unavailable_stays_optional[json]"
+      ],
+      "setup": {
+        "test": "test_cli_disabled_expected_lease_unavailable_stays_optional",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "as_json": true
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_disabled_expected_lease_unavailable_stays_optional[json]",
+        "called_functions": [
+          "CliRunner",
+          "CliRunner().invoke",
+          "calls.append",
+          "destination.read_text",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "pytest.mark.parametrize",
+          "str"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == 0",
+          "(finding['status'], finding['reason'], finding['required']) == ('warning', 'lease_observation_unavailable', False)",
+          "report['validation_complete'] is True and report['runtime_observation']['lease_status'] == 'unavailable'",
+          "json.loads(result.stdout) == report",
+          "'lease_observation_unavailable' in result.stdout and 'validated (exit 0)' in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "1ab7281a6643af41bfca1b265e68a0fe6298cff162ab93173ba8b4af0ee5d594"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_launched_knowledge_inspection_budget_returns_structured_unknown.17b4affc75b5",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_launched_knowledge_inspection_budget_returns_structured_unknown[text]"
+      ],
+      "setup": {
+        "test": "test_cli_launched_knowledge_inspection_budget_returns_structured_unknown",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "as_json": false
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_launched_knowledge_inspection_budget_returns_structured_unknown[text]",
+        "called_functions": [
+          "(state / 'knowledge').exists",
+          "(state / 'runtime-owner.json').exists",
+          "CliRunner",
+          "CliRunner().invoke",
+          "RuntimeLease",
+          "actual",
+          "calls.append",
+          "destination.read_text",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == 2",
+          "(finding['status'], finding['reason'], finding['required']) == ('unverified', 'inspection_unavailable', True)",
+          "finding['evidence']['reason'] == 'deadline_exceeded' and report['validation_complete'] is False",
+          "report['runtime_observation']['lease_status'] == 'free'",
+          "not (state / 'knowledge').exists() and (not (state / 'runtime-owner.json').exists())",
+          "json.loads(result.stdout) == report",
+          "'inspection_unavailable' in result.stdout and 'unverified (exit 2)' in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "2ac86ff1afe425063f08afc72a6037bc5a47fbb9ca909ad7b1fe11a780889e9d"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
+      "id": "doctor_contract.cli_launched_knowledge_inspection_budget_returns_structured_unknown.ec36e1d48be1",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_cli_launched_knowledge_inspection_budget_returns_structured_unknown[json]"
+      ],
+      "setup": {
+        "test": "test_cli_launched_knowledge_inspection_budget_returns_structured_unknown",
+        "fixture_arguments": [
+          "monkeypatch",
+          "tmp_path",
+          "fixture"
+        ],
+        "parameters": {
+          "as_json": true
+        },
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_cli_launched_knowledge_inspection_budget_returns_structured_unknown[json]",
+        "called_functions": [
+          "(state / 'knowledge').exists",
+          "(state / 'runtime-owner.json').exists",
+          "CliRunner",
+          "CliRunner().invoke",
+          "RuntimeLease",
+          "actual",
+          "calls.append",
+          "destination.read_text",
+          "json.loads",
+          "monkeypatch.setattr",
+          "next",
+          "path.read_text",
+          "path.write_text",
+          "pytest.mark.parametrize",
+          "str",
+          "yaml.safe_dump",
+          "yaml.safe_load"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "calls == ['inspection'] and result.exit_code == report['exit_code'] == 2",
+          "(finding['status'], finding['reason'], finding['required']) == ('unverified', 'inspection_unavailable', True)",
+          "finding['evidence']['reason'] == 'deadline_exceeded' and report['validation_complete'] is False",
+          "report['runtime_observation']['lease_status'] == 'free'",
+          "not (state / 'knowledge').exists() and (not (state / 'runtime-owner.json').exists())",
+          "json.loads(result.stdout) == report",
+          "'inspection_unavailable' in result.stdout and 'unverified (exit 2)' in result.stdout"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "2ac86ff1afe425063f08afc72a6037bc5a47fbb9ca909ad7b1fe11a780889e9d"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "CliRunner().invoke": [
+            "init: selected external config, durable overwrite backup and parent directories",
+            "doctor: only explicit --report-json output, selected inputs unchanged",
+            "reconcile: selected external YAML and reconcile lock, empty changes under dry-run"
+          ]
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
       "id": "doctor_contract.disabled_knowledge_never_inspected.e046d437d42c",
       "contract": "6",
       "nodes": [
@@ -15750,6 +18054,38 @@
     "doctor_contract.enabled_knowledge_result_aggregation.87bd284cdb74",
     "doctor_contract.enabled_knowledge_result_aggregation.ad451f873389",
     "doctor_contract.enabled_knowledge_result_aggregation.870038ca2ead",
+    "doctor_contract.cli_inspector_execution_errors_are_required_failures.f02cef4c44b7",
+    "doctor_contract.cli_inspector_execution_errors_are_required_failures.29ed437c78f7",
+    "doctor_contract.cli_inspector_execution_errors_are_required_failures.b83378299e32",
+    "doctor_contract.cli_inspector_execution_errors_are_required_failures.924f49351635",
+    "doctor_contract.cli_inspector_execution_errors_are_required_failures.7f81a7ecfc1f",
+    "doctor_contract.cli_inspector_execution_errors_are_required_failures.49639a40c4fc",
+    "doctor_contract.cli_inspector_execution_errors_are_required_failures.7d2678a0dbcb",
+    "doctor_contract.cli_inspector_execution_errors_are_required_failures.c7f4d3018d66",
+    "doctor_contract.cli_inspector_execution_errors_are_required_failures.44578a2714ad",
+    "doctor_contract.cli_inspector_execution_errors_are_required_failures.5026272724ea",
+    "doctor_contract.cli_inspector_execution_errors_are_required_failures.a17dfbde00ee",
+    "doctor_contract.cli_inspector_execution_errors_are_required_failures.23bbda1bae8e",
+    "doctor_contract.cli_budget_prevents_inspection_without_relabelling_configuration.2307b014377d",
+    "doctor_contract.cli_budget_prevents_inspection_without_relabelling_configuration.313a4798c567",
+    "doctor_contract.cli_budget_prevents_inspection_without_relabelling_configuration.f89f05148744",
+    "doctor_contract.cli_budget_prevents_inspection_without_relabelling_configuration.ef716a174f41",
+    "doctor_contract.cli_structured_inspection_unknown_preserves_failure_precedence.c515d2150940",
+    "doctor_contract.cli_structured_inspection_unknown_preserves_failure_precedence.4632c9a657f7",
+    "doctor_contract.cli_structured_inspection_unknown_preserves_failure_precedence.aa01b32443a8",
+    "doctor_contract.cli_structured_inspection_unknown_preserves_failure_precedence.a89501c68d5d",
+    "doctor_contract.cli_structured_inspection_unknown_preserves_failure_precedence.6b9eb64aacea",
+    "doctor_contract.cli_structured_inspection_unknown_preserves_failure_precedence.961200644525",
+    "doctor_contract.cli_structured_inspection_unknown_preserves_failure_precedence.110b9a80db00",
+    "doctor_contract.cli_structured_inspection_unknown_preserves_failure_precedence.5dd20e5cf6d7",
+    "doctor_contract.cli_structured_inspection_unknown_preserves_failure_precedence.d3e29e12aaca",
+    "doctor_contract.cli_structured_inspection_unknown_preserves_failure_precedence.3bf4c18567c1",
+    "doctor_contract.cli_structured_inspection_unknown_preserves_failure_precedence.a51da89de816",
+    "doctor_contract.cli_structured_inspection_unknown_preserves_failure_precedence.bd093cdfaee1",
+    "doctor_contract.cli_disabled_expected_lease_unavailable_stays_optional.c3bfa4a37652",
+    "doctor_contract.cli_disabled_expected_lease_unavailable_stays_optional.7528f5d687a4",
+    "doctor_contract.cli_launched_knowledge_inspection_budget_returns_structured_unknown.17b4affc75b5",
+    "doctor_contract.cli_launched_knowledge_inspection_budget_returns_structured_unknown.ec36e1d48be1",
     "doctor_contract.disabled_knowledge_never_inspected.e046d437d42c",
     "doctor_contract.doctor_usage_errors.c1a74f94aaa9",
     "doctor_contract.doctor_usage_errors.80345a175373",

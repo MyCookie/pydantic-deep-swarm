@@ -111,6 +111,10 @@ def test_each_leased_phase_obeys_total_startup_deadline(tmp_path, request, phase
             assert not any(event["event"] == "serve_ready" for event in process.events)
             assert not (state / "runtime-owner.json").exists()
             if phase == "knowledge":
+                assert failed["knowledge"]["status"] == "migration_failed"
+                assert failed["knowledge"]["cause"] == "deadline_exceeded"
+                assert failed["knowledge"]["phase"] == "PREPARED"
+                assert failed["knowledge"]["verification"] == "unknown"
                 pending = json.loads((state / "knowledge" / "migration-pending.json").read_text())
                 assert pending["phase"] == "PREPARED"
                 assert manifest(state)["knowledge.db"] == source_before
@@ -137,6 +141,12 @@ def test_foreground_migration_fault_preserves_journal_and_resumes(tmp_path, requ
             failed = process.wait("serve_failed")
             assert (failed["reason"], failed["phase"], failed["knowledge_reason"]) == (
                 "runtime_initialization_failed", "knowledge", "disk_full")
+            assert failed["knowledge"]["status"] == "migration_failed"
+            assert failed["knowledge"]["selected_source"] == "legacy"
+            assert failed["knowledge"]["phase"] == "RETIRING"
+            assert failed["knowledge"]["verification"] == "unknown"
+            assert failed["knowledge"]["history_count"] == 1
+            assert len(failed["knowledge"]["history_digest"]) == 64
             proof = process.finish(1)
             assert not any(event["event"] == "serve_ready" for event in process.events)
             pending = state / "knowledge" / "migration-pending.json"

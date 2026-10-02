@@ -68,6 +68,144 @@ def test_enabled_knowledge_result_aggregation(monkeypatch,fixture,knowledge,expe
     assert report["runtime_observation"]["endpoint_ready"] is True
 
 
+@pytest.mark.parametrize("as_json",[False,True],ids=["text","json"])
+@pytest.mark.parametrize("enabled",[False,True],ids=["disabled_lease","enabled_knowledge"])
+@pytest.mark.parametrize("error_type",[RuntimeError,AttributeError,TimeoutError],ids=["runtime","attribute","timeout"])
+def test_cli_inspector_execution_errors_are_required_failures(monkeypatch,tmp_path,fixture,as_json,enabled,error_type):
+    path,_=fixture
+    data=yaml.safe_load(path.read_text()); data["memory"]["enabled"]=enabled; path.write_text(yaml.safe_dump(data))
+    calls=[]
+    def broken(*args,**kwargs):
+        calls.append("inspection")
+        raise error_type("diagnostic-secret-marker")
+    if enabled:
+        monkeypatch.setattr("agent_team.memory.preparation.inspect_knowledge",broken)
+    else:
+        monkeypatch.setattr("agent_team.persistence.RuntimeLeaseInspection",broken)
+    destination=tmp_path/"diagnostic.json"
+    result=CliRunner().invoke(cli,["doctor","--config",str(path),"--report",str(destination),*(["--json"] if as_json else [])])
+    report=json.loads(destination.read_text())
+    finding=next(c for c in report["checks"] if c["id"]==("knowledge" if enabled else "lease"))
+    assert calls==["inspection"] and result.exit_code==report["exit_code"]==1
+    assert (finding["status"],finding["reason"],finding["required"])==("failed","execution_error",True)
+    assert report["outcome"]=="blocked" and report["validation_complete"] is True
+    assert finding["detail"] and finding["remediation"] and finding["evidence"]=={}
+    assert "diagnostic-secret-marker" not in result.output+destination.read_text()
+    if as_json: assert json.loads(result.stdout)==report
+    else: assert "execution_error" in result.stdout and "blocked (exit 1)" in result.stdout
+
+
+@pytest.mark.parametrize("as_json",[False,True],ids=["text","json"])
+@pytest.mark.parametrize("enabled",[False,True],ids=["disabled_lease","enabled_knowledge"])
+def test_cli_budget_prevents_inspection_without_relabelling_configuration(monkeypatch,tmp_path,fixture,as_json,enabled):
+    path,_=fixture
+    data=yaml.safe_load(path.read_text()); data["memory"]["enabled"]=enabled; path.write_text(yaml.safe_dump(data))
+    clock=[0.]
+    monkeypatch.setattr("agent_team.doctor.time.monotonic",lambda:clock[0])
+    def models(config,deadline=None):
+        clock[0]=1.
+        return config,{"http://model/v1":["chosen"]}
+    monkeypatch.setattr("agent_team.doctor.resolve_role_models",models)
+    calls=[]
+    def forbidden(*args,**kwargs):
+        calls.append("inspection")
+        raise AssertionError("inspection launched after deadline")
+    monkeypatch.setattr("agent_team.memory.preparation.inspect_knowledge",forbidden)
+    monkeypatch.setattr("agent_team.persistence.RuntimeLeaseInspection",forbidden)
+    destination=tmp_path/"diagnostic.json"
+    result=CliRunner().invoke(cli,["doctor","--config",str(path),"--timeout","1","--report",str(destination),*(["--json"] if as_json else [])])
+    report=json.loads(destination.read_text())
+    finding=next(c for c in report["checks"] if c["id"]==("knowledge" if enabled else "lease"))
+    assert calls==[]
+    assert result.exit_code==report["exit_code"]==(2 if enabled else 0)
+    assert (finding["status"],finding["reason"],finding["required"])==("unverified" if enabled else "warning","deadline_exhausted",enabled)
+    assert report["validation_complete"] is (not enabled)
+    assert [(c["status"],c["reason"]) for c in report["checks"] if c["id"]=="configuration"]==[("passed","configuration_valid")]
+    if as_json: assert json.loads(result.stdout)==report
+    else: assert "deadline_exhausted" in result.stdout and f"(exit {report['exit_code']})" in result.stdout
+
+
+@pytest.mark.parametrize("as_json",[False,True],ids=["text","json"])
+@pytest.mark.parametrize("prior_failure",[False,True],ids=["no_prior_failure","prior_failure"])
+@pytest.mark.parametrize("status,reason",[("inspection_unavailable","deadline_exceeded"),("inspection_unavailable","coherent_copy_unavailable"),("inspection_deferred","runtime_occupied")])
+def test_cli_structured_inspection_unknown_preserves_failure_precedence(monkeypatch,tmp_path,fixture,as_json,prior_failure,status,reason):
+    from agent_team.memory.preparation import KnowledgeInspection, KnowledgeResult
+    path,_=fixture
+    data=yaml.safe_load(path.read_text()); data["memory"]["enabled"]=True; path.write_text(yaml.safe_dump(data))
+    if prior_failure:
+        def models(*args,**kwargs): raise RuntimeError("diagnostic-secret-marker")
+        monkeypatch.setattr("agent_team.doctor.resolve_role_models",models)
+    calls=[]
+    def inspect(*args,**kwargs):
+        calls.append("inspection")
+        return KnowledgeInspection(KnowledgeResult(status,reason=reason),"occupied" if status=="inspection_deferred" else "free")
+    monkeypatch.setattr("agent_team.memory.preparation.inspect_knowledge",inspect)
+    destination=tmp_path/"diagnostic.json"
+    result=CliRunner().invoke(cli,["doctor","--config",str(path),"--report",str(destination),*(["--json"] if as_json else [])])
+    report=json.loads(destination.read_text())
+    finding=next(c for c in report["checks"] if c["id"]=="knowledge")
+    assert calls==["inspection"] and result.exit_code==report["exit_code"]==(1 if prior_failure else 2)
+    assert (finding["status"],finding["reason"],finding["required"])==("unverified",status,True)
+    assert finding["evidence"]["reason"]==reason and report["validation_complete"] is False
+    assert not any(c["reason"]=="execution_error" for c in report["checks"])
+    assert "diagnostic-secret-marker" not in result.output+destination.read_text()
+    if as_json: assert json.loads(result.stdout)==report
+    else: assert status in result.stdout and f"(exit {report['exit_code']})" in result.stdout
+
+
+@pytest.mark.parametrize("as_json",[False,True],ids=["text","json"])
+def test_cli_disabled_expected_lease_unavailable_stays_optional(monkeypatch,tmp_path,fixture,as_json):
+    path,_=fixture
+    calls=[]
+    class Unavailable:
+        status="unavailable"
+        owner=None
+        def __init__(self,*args,**kwargs): calls.append("inspection")
+        def __enter__(self): return self
+        def __exit__(self,*args): pass
+    monkeypatch.setattr("agent_team.persistence.RuntimeLeaseInspection",Unavailable)
+    destination=tmp_path/"diagnostic.json"
+    result=CliRunner().invoke(cli,["doctor","--config",str(path),"--report",str(destination),*(["--json"] if as_json else [])])
+    report=json.loads(destination.read_text())
+    finding=next(c for c in report["checks"] if c["id"]=="lease")
+    assert calls==["inspection"] and result.exit_code==report["exit_code"]==0
+    assert (finding["status"],finding["reason"],finding["required"])==("warning","lease_observation_unavailable",False)
+    assert report["validation_complete"] is True and report["runtime_observation"]["lease_status"]=="unavailable"
+    if as_json: assert json.loads(result.stdout)==report
+    else: assert "lease_observation_unavailable" in result.stdout and "validated (exit 0)" in result.stdout
+
+
+@pytest.mark.parametrize("as_json",[False,True],ids=["text","json"])
+def test_cli_launched_knowledge_inspection_budget_returns_structured_unknown(monkeypatch,tmp_path,fixture,as_json):
+    from agent_team.memory import preparation
+    from agent_team.persistence import RuntimeLease
+    path,_=fixture
+    data=yaml.safe_load(path.read_text()); data["memory"]["enabled"]=True; path.write_text(yaml.safe_dump(data))
+    state=path.parent/"state"
+    with RuntimeLease(state/"runtime.lock"):
+        pass
+    clock=[0.]
+    monkeypatch.setattr("agent_team.doctor.time.monotonic",lambda:clock[0])
+    actual=preparation.inspect_knowledge
+    calls=[]
+    def inspect(*args,**kwargs):
+        calls.append("inspection")
+        clock[0]=1.
+        return actual(*args,**kwargs)
+    monkeypatch.setattr(preparation,"inspect_knowledge",inspect)
+    destination=tmp_path/"diagnostic.json"
+    result=CliRunner().invoke(cli,["doctor","--config",str(path),"--timeout","1","--report",str(destination),*(["--json"] if as_json else [])])
+    report=json.loads(destination.read_text())
+    finding=next(c for c in report["checks"] if c["id"]=="knowledge")
+    assert calls==["inspection"] and result.exit_code==report["exit_code"]==2
+    assert (finding["status"],finding["reason"],finding["required"])==("unverified","inspection_unavailable",True)
+    assert finding["evidence"]["reason"]=="deadline_exceeded" and report["validation_complete"] is False
+    assert report["runtime_observation"]["lease_status"]=="free"
+    assert not (state/"knowledge").exists() and not (state/"runtime-owner.json").exists()
+    if as_json: assert json.loads(result.stdout)==report
+    else: assert "inspection_unavailable" in result.stdout and "unverified (exit 2)" in result.stdout
+
+
 def test_disabled_knowledge_never_inspected(monkeypatch,fixture):
     path,requests=fixture
     def forbidden(*args,**kwargs): raise AssertionError("knowledge touched")

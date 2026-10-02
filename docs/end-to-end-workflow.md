@@ -43,13 +43,39 @@ For an unsupervised installation, initialize external state with `agent-team
 init`, start the HTTP process with `agent-team serve`, and inspect configuration,
 model discovery, and HTTP readiness with `agent-team doctor --json`. These paths
 do not require the optional s6 templates or service environment. `swarm detect`
-only queries the configured model endpoint. A stopped HTTP service makes doctor
-report unhealthy readiness; absent optional supervision does not.
+only queries the configured model endpoint. A stopped HTTP service is normal in
+core doctor scope. Enabled knowledge needs an existing free inspection lock;
+missing or occupied locks make inspection unverified, while disabled knowledge
+does not access databases. Readiness is advisory and cannot establish that an
+endpoint owns the selected state directory; correlation remains unknown.
 
 The optional s6 deployment uses the templates in `s6-service/` and retains the
 supervised `bootstrap` gate. Select it using `AGENT_TEAM_SUPERVISOR=s6` and a live
 `AGENT_TEAM_SERVICE_DIR`; select `none` to ignore inherited s6 settings. Swarm
-reconciliation is an s6 compatibility workflow rather than a core startup step.
+reconciliation also works in core mode: the selected external YAML is model
+authority. It locks and rereads that file, backs up changes, and atomically
+persists them before any optional restart. Missing or failed activation leaves
+the committed change pending; skipping verification cannot report convergence.
+Source defaults and live runfiles are not rewritten. When supervisor selection is
+unset, a nonempty service directory retains legacy s6 selection; installed
+binaries alone do not select it.
+
+Before admitting requests, foreground serve freezes validated configuration and
+its lifespan acquires the sole nonblocking state lease. It validates active model
+catalogs, prepares canonical knowledge once, recovers sessions, applies retention,
+and constructs the engine with that shared store. Preparation emits safe stderr
+diagnostics for selected source, verification, preserved history, migration,
+recovery and archive/journal guidance before retention changes any counts.
+Disabled knowledge reports its selection without accessing databases. Readiness
+is published only after these gates and actual listener binding.
+
+Managed session, knowledge, workspace and artifact mutations check the live,
+non-stopping owner generation immediately before committing. Children can write
+only isolated generation scratch; a successor rejects buffered old-generation
+mutations. Stop closes admission, cancels work, reaps owned children and closes
+stores before releasing ownership. Failed or forced cleanup does not voluntarily
+release a lease while a mutator remains active; the foreground contract records
+the second-signal orphan and platform limits.
 
 ### 1. Typed brief submission
 

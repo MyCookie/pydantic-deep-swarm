@@ -555,6 +555,7 @@ class KnowledgeStore:
                     "DELETE FROM knowledge_records WHERE id=?",
                     (record_id,),
                 )
+                self._check_write()
                 connection.commit()
                 return cursor.rowcount > 0
 

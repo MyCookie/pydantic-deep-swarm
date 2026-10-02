@@ -543,6 +543,10 @@ def test_knowledge_failure_preserves_evidence(tmp_path, request):
             failed = process.wait("serve_failed")
             assert (failed["reason"], failed["phase"]) == ("runtime_initialization_failed", "knowledge")
             assert failed["knowledge_reason"] == "sqlite_validation_failed"
+            assert failed["knowledge"]["status"] == "invalid"
+            assert failed["knowledge"]["state_dir"] == str(state)
+            assert failed["knowledge"]["verification"] == "unknown"
+            assert len([event for event in process.events if event["event"] == "knowledge_preparation"]) == 1
             proof = process.finish(1)
             assert manifest(state) == before
             assert not any(item["event"] == "serve_ready" for item in process.events)

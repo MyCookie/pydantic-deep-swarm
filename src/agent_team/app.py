@@ -40,12 +40,54 @@ _startup_deadline = None
 _phase = "preflight"
 _startup_failure = None
 _shutdown_failure = None
+_knowledge_result = None
+_knowledge_context = None
 
 
 class RuntimeStartupError(RuntimeError):
-    def __init__(self, reason, phase, *, knowledge_reason=None):
+    def __init__(self, reason, phase, *, knowledge_reason=None, knowledge=None):
         super().__init__(reason)
-        self.reason, self.phase, self.knowledge_reason = reason, phase, knowledge_reason
+        self.reason, self.phase = reason, phase
+        self.knowledge = redact_sensitive_data(knowledge) if knowledge is not None else None
+        self.knowledge_reason = knowledge_reason or (self.knowledge or {}).get("reason")
+
+
+def _knowledge_metadata(state_dir, *, status, reason=None, verification="unknown"):
+    """Logical metadata only: this function never touches either candidate."""
+    return {
+        "state_dir": str(state_dir), "status": status, "reason": reason,
+        "selected_source": None, "verification": verification,
+        "candidate_paths": {"legacy": str(state_dir / "knowledge.db"),
+                            "canonical": str(state_dir / "knowledge" / "knowledge.db")},
+        "phase": None, "migration_id": None, "archive_path": None, "journal_path": None,
+        "warnings": [], "history_count": None, "history_digest": None,
+        "recovered": False, "upgraded": False,
+        "remediation": "Enable shared knowledge and start the runtime to prepare its canonical store."
+                       if status == "disabled" else "Preserve all state and recovery evidence; retry only after writers are stopped.",
+    }
+
+
+def _publish_knowledge(result):
+    """Publish one payload per attempted preparation, excluding record content."""
+    global _knowledge_result
+    if _knowledge_result is not None:
+        return _knowledge_result
+    allowed = {"state_dir", "status", "reason", "selected_source", "verification", "candidate_paths",
+               "phase", "migration_id", "archive_path", "journal_path", "warnings", "history_count",
+               "history_digest", "recovered", "upgraded", "remediation"}
+    data = result.as_dict() if hasattr(result, "as_dict") else result
+    _knowledge_result = redact_sensitive_data({key: data.get(key) for key in sorted(allowed)})
+    _knowledge_result["cause"] = _knowledge_result["reason"]
+    from .foreground import event
+    event("knowledge_preparation", **_knowledge_result)
+    return _knowledge_result
+
+
+def _knowledge_interrupted(reason):
+    """For forced OS teardown, disclose incomplete evidence without inspection."""
+    if _knowledge_context is not None and _knowledge_result is None:
+        _publish_knowledge({**_knowledge_context, "status": "migration_failed", "reason": reason,
+                            "verification": "unknown"})
 
 
 def _check_startup(deadline):
@@ -114,7 +156,7 @@ class MessageResponse(BaseModel):
 
 def _initialize_runtime(loaded_config=None, *, deadline=None) -> None:
     """Initialize the single leased runtime for direct and lifespan callers."""
-    global config, engine, session_store, runtime_lease, _starting, _prepared_store, _phase
+    global config, engine, session_store, runtime_lease, _starting, _prepared_store, _phase, _knowledge_result, _knowledge_context
     if config is not None and engine is not None and session_store is not None:
         return
 
@@ -126,6 +168,7 @@ def _initialize_runtime(loaded_config=None, *, deadline=None) -> None:
     loaded_config.runtime.state_dir = state_dir
     loaded_config.runtime.workspace_dir = workspace_dir
     _starting = True
+    _knowledge_result = _knowledge_context = None
     _phase = "lease"
     _check_startup(deadline)
     lease = RuntimeLease(loaded_config.runtime.state_dir / "runtime.lock")
@@ -142,9 +185,18 @@ def _initialize_runtime(loaded_config=None, *, deadline=None) -> None:
         _check_startup(deadline)
         knowledge_store = None
         if loaded_config.memory.enabled and loaded_config.memory.shared_knowledge:
+            _knowledge_context = _knowledge_metadata(state_dir, status="migration_failed")
             from .memory.preparation import prepare_knowledge
-            prepared = prepare_knowledge(state_dir, lease=lease, deadline=deadline)
+            try:
+                prepared = prepare_knowledge(state_dir, lease=lease, deadline=deadline)
+            except BaseException as exc:
+                _publish_knowledge(getattr(exc, "result", {**_knowledge_context, "reason": "execution_error"}))
+                raise
             knowledge_store = prepared.store
+            _prepared_store = knowledge_store
+            _publish_knowledge(prepared.result)
+        else:
+            _publish_knowledge(_knowledge_metadata(state_dir, status="disabled", verification="not_selected"))
         _prepared_store = knowledge_store
         _phase = "recovery"
         _check_startup(deadline)
@@ -206,11 +258,11 @@ async def lifespan(_: FastAPI):
         if _startup_deadline is not None and time.monotonic() >= _startup_deadline:
             reason = "startup_timeout"
         knowledge_reason = getattr(getattr(exc, "result", None), "reason", None)
-        _startup_failure = RuntimeStartupError(reason, _phase, knowledge_reason=knowledge_reason)
+        _startup_failure = RuntimeStartupError(reason, _phase, knowledge_reason=knowledge_reason, knowledge=_knowledge_result)
         try:
             await _shutdown_runtime()
         except BaseException:
-            _startup_failure = RuntimeStartupError("shutdown_failed", "shutdown")
+            _startup_failure = RuntimeStartupError("shutdown_failed", "shutdown", knowledge_reason=knowledge_reason, knowledge=_knowledge_result)
         raise _startup_failure from None
     logger.info("startup", service="agent-team", state_dir=str(config.runtime.state_dir))
     try:

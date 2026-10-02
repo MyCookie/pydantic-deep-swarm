@@ -15,13 +15,18 @@ from urllib.parse import urlsplit
 
 
 def event(name, *, stdout=False, **fields):
-    print(json.dumps({"event": name, **fields}, sort_keys=True), file=sys.stdout if stdout else sys.stderr, flush=True)
+    from .redaction import redact_sensitive_data
+    print(json.dumps(redact_sensitive_data({"event": name, **fields}), sort_keys=True), file=sys.stdout if stdout else sys.stderr, flush=True)
 
 
-def _failure(reason, phase, knowledge_reason=None):
+def _failure(reason, phase, knowledge_reason=None, *, knowledge=None):
     fields = {"reason": reason, "phase": phase, "detail": "Runtime could not complete this phase; inspect configuration and preserved state."}
     if knowledge_reason is not None:
         fields["knowledge_reason"] = knowledge_reason
+    if knowledge is not None:
+        fields["knowledge"] = knowledge
+        if fields.get("knowledge_reason") is None and knowledge.get("reason") is not None:
+            fields["knowledge_reason"] = knowledge["reason"]
     event("serve_failed", **fields)
 
 
@@ -45,15 +50,17 @@ def run_serve(*, host=None, port=None, config_file=None, state_dir=None, workspa
     def publish_failure():
         nonlocal failure_emitted
         if failure is not None and not failure_emitted:
-            _failure(*failure)
+            _failure(*failure, knowledge=boundary._knowledge_result if boundary is not None else None)
             failure_emitted = True
 
     def force_exit():
         # OS teardown releases ownership; no initializer is left running without it.
         with guard:
+            if boundary is not None:
+                boundary._knowledge_interrupted("deadline_exceeded" if failure is not None and failure[0] == "startup_timeout" else "owner_terminated")
             publish_failure()
             if failure is None:
-                _failure("shutdown_failed", "shutdown")
+                _failure("shutdown_failed", "shutdown", knowledge=boundary._knowledge_result if boundary is not None else None)
             os._exit(1)
 
     def begin_teardown():
@@ -75,7 +82,10 @@ def run_serve(*, host=None, port=None, config_file=None, state_dir=None, workspa
             if ready_published or stopping_signal is not None:
                 return
             failure = ("startup_timeout", current_phase(), None)
-            publish_failure()
+            # Preparation's failure result owns its durable phase/archive evidence.
+            # Let it unwind under the lease; forced teardown emits qualified unknowns.
+            if current_phase() != "knowledge":
+                publish_failure()
             begin_teardown()
 
     def stop(signum, frame):
@@ -127,6 +137,7 @@ def run_serve(*, host=None, port=None, config_file=None, state_dir=None, workspa
         boundary._startup_deadline = deadline
         boundary._stopping = stopping_signal is not None or failure is not None
         boundary._startup_failure = boundary._shutdown_failure = None
+        boundary._knowledge_result = boundary._knowledge_context = None
         boundary._phase = "preflight"
 
         class ForegroundServer(uvicorn.Server):

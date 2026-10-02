@@ -156751,6 +156751,1075 @@
         "resources": "Real SQLite connections close; rollback confirmed after executed DELETE. Actual OS lease releases via context exit, including assertion failures.",
         "state": "Test-owned pytest state removed by fixture lifecycle; original production state is untouched."
       }
+    },
+    {
+      "id": "knowledge.fresh_pending_history_requires_concrete_sql_proof.untouched-staged",
+      "contract": "3/6/8",
+      "nodes": [
+        "tests/test_knowledge_recovery_history.py::test_fresh_pending_history_requires_concrete_sql_proof[untouched-staged]"
+      ],
+      "setup": {
+        "test": "test_fresh_pending_history_requires_concrete_sql_proof",
+        "parameters": {
+          "integrity": "untouched",
+          "site": "journal.prepared.after"
+        },
+        "fixture_arguments": [
+          "tmp_path",
+          "request"
+        ],
+        "isolation": "External per-case state, actual independent child process and OS runtime lease. Fresh stage/publication interrupted by os._exit(77), not a mocked exception."
+      },
+      "operation": {
+        "entry_point": "tests/test_knowledge_recovery_history.py::test_fresh_pending_history_requires_concrete_sql_proof[untouched-staged]",
+        "called_functions": [
+          "(archive / 'manifest.json').read_text",
+          "Path",
+          "all",
+          "assert_unknown",
+          "crash_fresh",
+          "durable_evidence",
+          "guarded_sqlite",
+          "history_evidence",
+          "inspect_knowledge",
+          "json.dumps",
+          "json.loads",
+          "monkeypatch.context",
+          "path.exists",
+          "pending.exists",
+          "pending.read_text",
+          "pending.write_text",
+          "physical_evidence",
+          "pytest.mark.parametrize",
+          "pytest.raises",
+          "raw",
+          "record_proof",
+          "run"
+        ],
+        "publication_fault_sites": [
+          "journal.prepared.after",
+          "publication.rename.after"
+        ],
+        "doctor": "Nonmutating inspection under existing lease; SQL opens verified outside state only.",
+        "runtime": "Public prepare_knowledge through real lease; full logical candidate history must agree before continuation."
+      },
+      "expected": {
+        "observations": {
+          "doctor_status": "recovery_pending",
+          "runtime_status": "created",
+          "reason": null,
+          "verification": "passed",
+          "process_exit": 77,
+          "child_reaped": true,
+          "doctor_nonmutation": true,
+          "private_sql_only": true,
+          "private_copies_cleaned": true,
+          "fresh_history_count": 0,
+          "fresh_history_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "tamper_scope": "none"
+        },
+        "assertion_predicates": [
+          "observation.lease_status == 'free'",
+          "physical_evidence(tmp_path) == before",
+          "paths and all((not path.exists() for path in paths))",
+          "observation.result.status == expected_status",
+          "{**changed, 'history': journal['history']} == journal",
+          "observation.result.reason == 'candidate_history_unverified'",
+          "failure.value.result.status == 'recovery_required'",
+          "failure.value.result.reason == 'candidate_history_unverified'",
+          "durable_evidence(tmp_path) == preserved",
+          "recovery_paths and all((not path.exists() for path in recovery_paths))",
+          "pending.exists()",
+          "observation.result.verification == 'passed'",
+          "observation.result.history_count == 0",
+          "observation.result.history_digest == EMPTY_HISTORY_DIGEST",
+          "recovery_paths and all((not path.exists() for path in recovery_paths))",
+          "prepared.result.status == 'created' and prepared.result.recovered",
+          "prepared.result.phase == 'COMPLETED' and prepared.result.verification == 'passed'",
+          "prepared.result.history_count == 0 and prepared.result.history_digest == EMPTY_HISTORY_DIGEST",
+          "not pending.exists()",
+          "raw(canonical) == []",
+          "proof['valid'] and proof['raw_value_type_match'] and (proof['count'] == 0)",
+          "proof['schema_columns'] == 14 and proof['private_copy_cleaned']",
+          "json.loads((archive / 'manifest.json').read_text())['history'] == journal['history']"
+        ],
+        "expected_exception_checks": [
+          "pytest.raises(KnowledgePreparationError)"
+        ],
+        "source": "tests/test_knowledge_recovery_history.py",
+        "source_sha256": "3c663147d1596aed318c6e6d41446a683ee4a9cb44cec7a732363e9200f305b5",
+        "fixture_oracle_source": "tests/test_knowledge_preparation.py",
+        "fixture_oracle_sha256": "d25f47ec5d95d721b984193251e72ad925143e253ec43729ff611e392f2c95c9"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "Only test-owned external state; intentional journal digest or companion tamper occurs before nonmutation baseline.",
+        "doctor": "No durable file, directory, inode, mode, content, owner metadata, or sidecar changes. Disposable private copies cleaned.",
+        "runtime": "Lease file and ownership metadata operations allowed. Rejected histories preserve every database/journal/archive/companion entry; valid histories continue exact recorded publication and complete archive manifest."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "enforcement": "SIGALRM and monotonic whole-case limit 20 seconds; actual crash subprocess timeout 5 seconds.",
+        "resources": "subprocess.run reaps crashed child exit77; all SQLite connections close; private copied paths removed; lease context exits.",
+        "state": "Per-case pytest state only; original user/deployed state untouched."
+      }
+    },
+    {
+      "id": "knowledge.fresh_pending_history_requires_concrete_sql_proof.untouched-published",
+      "contract": "3/6/8",
+      "nodes": [
+        "tests/test_knowledge_recovery_history.py::test_fresh_pending_history_requires_concrete_sql_proof[untouched-published]"
+      ],
+      "setup": {
+        "test": "test_fresh_pending_history_requires_concrete_sql_proof",
+        "parameters": {
+          "integrity": "untouched",
+          "site": "publication.rename.after"
+        },
+        "fixture_arguments": [
+          "tmp_path",
+          "request"
+        ],
+        "isolation": "External per-case state, actual independent child process and OS runtime lease. Fresh stage/publication interrupted by os._exit(77), not a mocked exception."
+      },
+      "operation": {
+        "entry_point": "tests/test_knowledge_recovery_history.py::test_fresh_pending_history_requires_concrete_sql_proof[untouched-published]",
+        "called_functions": [
+          "(archive / 'manifest.json').read_text",
+          "Path",
+          "all",
+          "assert_unknown",
+          "crash_fresh",
+          "durable_evidence",
+          "guarded_sqlite",
+          "history_evidence",
+          "inspect_knowledge",
+          "json.dumps",
+          "json.loads",
+          "monkeypatch.context",
+          "path.exists",
+          "pending.exists",
+          "pending.read_text",
+          "pending.write_text",
+          "physical_evidence",
+          "pytest.mark.parametrize",
+          "pytest.raises",
+          "raw",
+          "record_proof",
+          "run"
+        ],
+        "publication_fault_sites": [
+          "journal.prepared.after",
+          "publication.rename.after"
+        ],
+        "doctor": "Nonmutating inspection under existing lease; SQL opens verified outside state only.",
+        "runtime": "Public prepare_knowledge through real lease; full logical candidate history must agree before continuation."
+      },
+      "expected": {
+        "observations": {
+          "doctor_status": "recovery_pending",
+          "runtime_status": "created",
+          "reason": null,
+          "verification": "passed",
+          "process_exit": 77,
+          "child_reaped": true,
+          "doctor_nonmutation": true,
+          "private_sql_only": true,
+          "private_copies_cleaned": true,
+          "fresh_history_count": 0,
+          "fresh_history_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "tamper_scope": "none"
+        },
+        "assertion_predicates": [
+          "observation.lease_status == 'free'",
+          "physical_evidence(tmp_path) == before",
+          "paths and all((not path.exists() for path in paths))",
+          "observation.result.status == expected_status",
+          "{**changed, 'history': journal['history']} == journal",
+          "observation.result.reason == 'candidate_history_unverified'",
+          "failure.value.result.status == 'recovery_required'",
+          "failure.value.result.reason == 'candidate_history_unverified'",
+          "durable_evidence(tmp_path) == preserved",
+          "recovery_paths and all((not path.exists() for path in recovery_paths))",
+          "pending.exists()",
+          "observation.result.verification == 'passed'",
+          "observation.result.history_count == 0",
+          "observation.result.history_digest == EMPTY_HISTORY_DIGEST",
+          "recovery_paths and all((not path.exists() for path in recovery_paths))",
+          "prepared.result.status == 'created' and prepared.result.recovered",
+          "prepared.result.phase == 'COMPLETED' and prepared.result.verification == 'passed'",
+          "prepared.result.history_count == 0 and prepared.result.history_digest == EMPTY_HISTORY_DIGEST",
+          "not pending.exists()",
+          "raw(canonical) == []",
+          "proof['valid'] and proof['raw_value_type_match'] and (proof['count'] == 0)",
+          "proof['schema_columns'] == 14 and proof['private_copy_cleaned']",
+          "json.loads((archive / 'manifest.json').read_text())['history'] == journal['history']"
+        ],
+        "expected_exception_checks": [
+          "pytest.raises(KnowledgePreparationError)"
+        ],
+        "source": "tests/test_knowledge_recovery_history.py",
+        "source_sha256": "3c663147d1596aed318c6e6d41446a683ee4a9cb44cec7a732363e9200f305b5",
+        "fixture_oracle_source": "tests/test_knowledge_preparation.py",
+        "fixture_oracle_sha256": "d25f47ec5d95d721b984193251e72ad925143e253ec43729ff611e392f2c95c9"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "Only test-owned external state; intentional journal digest or companion tamper occurs before nonmutation baseline.",
+        "doctor": "No durable file, directory, inode, mode, content, owner metadata, or sidecar changes. Disposable private copies cleaned.",
+        "runtime": "Lease file and ownership metadata operations allowed. Rejected histories preserve every database/journal/archive/companion entry; valid histories continue exact recorded publication and complete archive manifest."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "enforcement": "SIGALRM and monotonic whole-case limit 20 seconds; actual crash subprocess timeout 5 seconds.",
+        "resources": "subprocess.run reaps crashed child exit77; all SQLite connections close; private copied paths removed; lease context exits.",
+        "state": "Per-case pytest state only; original user/deployed state untouched."
+      }
+    },
+    {
+      "id": "knowledge.fresh_pending_history_requires_concrete_sql_proof.digest-corrupt-staged",
+      "contract": "3/6/8",
+      "nodes": [
+        "tests/test_knowledge_recovery_history.py::test_fresh_pending_history_requires_concrete_sql_proof[digest-corrupt-staged]"
+      ],
+      "setup": {
+        "test": "test_fresh_pending_history_requires_concrete_sql_proof",
+        "parameters": {
+          "integrity": "digest-corrupt",
+          "site": "journal.prepared.after"
+        },
+        "fixture_arguments": [
+          "tmp_path",
+          "request"
+        ],
+        "isolation": "External per-case state, actual independent child process and OS runtime lease. Fresh stage/publication interrupted by os._exit(77), not a mocked exception."
+      },
+      "operation": {
+        "entry_point": "tests/test_knowledge_recovery_history.py::test_fresh_pending_history_requires_concrete_sql_proof[digest-corrupt-staged]",
+        "called_functions": [
+          "(archive / 'manifest.json').read_text",
+          "Path",
+          "all",
+          "assert_unknown",
+          "crash_fresh",
+          "durable_evidence",
+          "guarded_sqlite",
+          "history_evidence",
+          "inspect_knowledge",
+          "json.dumps",
+          "json.loads",
+          "monkeypatch.context",
+          "path.exists",
+          "pending.exists",
+          "pending.read_text",
+          "pending.write_text",
+          "physical_evidence",
+          "pytest.mark.parametrize",
+          "pytest.raises",
+          "raw",
+          "record_proof",
+          "run"
+        ],
+        "publication_fault_sites": [
+          "journal.prepared.after",
+          "publication.rename.after"
+        ],
+        "doctor": "Nonmutating inspection under existing lease; SQL opens verified outside state only.",
+        "runtime": "Public prepare_knowledge through real lease; full logical candidate history must agree before continuation."
+      },
+      "expected": {
+        "observations": {
+          "doctor_status": "recovery_required",
+          "runtime_status": "recovery_required",
+          "reason": "candidate_history_unverified",
+          "verification": "unknown",
+          "process_exit": 77,
+          "child_reaped": true,
+          "doctor_nonmutation": true,
+          "private_sql_only": true,
+          "private_copies_cleaned": true,
+          "fresh_history_count": null,
+          "fresh_history_digest": null,
+          "tamper_scope": "journal.history.digest only"
+        },
+        "assertion_predicates": [
+          "observation.lease_status == 'free'",
+          "physical_evidence(tmp_path) == before",
+          "paths and all((not path.exists() for path in paths))",
+          "observation.result.status == expected_status",
+          "{**changed, 'history': journal['history']} == journal",
+          "observation.result.reason == 'candidate_history_unverified'",
+          "failure.value.result.status == 'recovery_required'",
+          "failure.value.result.reason == 'candidate_history_unverified'",
+          "durable_evidence(tmp_path) == preserved",
+          "recovery_paths and all((not path.exists() for path in recovery_paths))",
+          "pending.exists()",
+          "observation.result.verification == 'passed'",
+          "observation.result.history_count == 0",
+          "observation.result.history_digest == EMPTY_HISTORY_DIGEST",
+          "recovery_paths and all((not path.exists() for path in recovery_paths))",
+          "prepared.result.status == 'created' and prepared.result.recovered",
+          "prepared.result.phase == 'COMPLETED' and prepared.result.verification == 'passed'",
+          "prepared.result.history_count == 0 and prepared.result.history_digest == EMPTY_HISTORY_DIGEST",
+          "not pending.exists()",
+          "raw(canonical) == []",
+          "proof['valid'] and proof['raw_value_type_match'] and (proof['count'] == 0)",
+          "proof['schema_columns'] == 14 and proof['private_copy_cleaned']",
+          "json.loads((archive / 'manifest.json').read_text())['history'] == journal['history']"
+        ],
+        "expected_exception_checks": [
+          "pytest.raises(KnowledgePreparationError)"
+        ],
+        "source": "tests/test_knowledge_recovery_history.py",
+        "source_sha256": "3c663147d1596aed318c6e6d41446a683ee4a9cb44cec7a732363e9200f305b5",
+        "fixture_oracle_source": "tests/test_knowledge_preparation.py",
+        "fixture_oracle_sha256": "d25f47ec5d95d721b984193251e72ad925143e253ec43729ff611e392f2c95c9"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "Only test-owned external state; intentional journal digest or companion tamper occurs before nonmutation baseline.",
+        "doctor": "No durable file, directory, inode, mode, content, owner metadata, or sidecar changes. Disposable private copies cleaned.",
+        "runtime": "Lease file and ownership metadata operations allowed. Rejected histories preserve every database/journal/archive/companion entry; valid histories continue exact recorded publication and complete archive manifest."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "enforcement": "SIGALRM and monotonic whole-case limit 20 seconds; actual crash subprocess timeout 5 seconds.",
+        "resources": "subprocess.run reaps crashed child exit77; all SQLite connections close; private copied paths removed; lease context exits.",
+        "state": "Per-case pytest state only; original user/deployed state untouched."
+      }
+    },
+    {
+      "id": "knowledge.fresh_pending_history_requires_concrete_sql_proof.digest-corrupt-published",
+      "contract": "3/6/8",
+      "nodes": [
+        "tests/test_knowledge_recovery_history.py::test_fresh_pending_history_requires_concrete_sql_proof[digest-corrupt-published]"
+      ],
+      "setup": {
+        "test": "test_fresh_pending_history_requires_concrete_sql_proof",
+        "parameters": {
+          "integrity": "digest-corrupt",
+          "site": "publication.rename.after"
+        },
+        "fixture_arguments": [
+          "tmp_path",
+          "request"
+        ],
+        "isolation": "External per-case state, actual independent child process and OS runtime lease. Fresh stage/publication interrupted by os._exit(77), not a mocked exception."
+      },
+      "operation": {
+        "entry_point": "tests/test_knowledge_recovery_history.py::test_fresh_pending_history_requires_concrete_sql_proof[digest-corrupt-published]",
+        "called_functions": [
+          "(archive / 'manifest.json').read_text",
+          "Path",
+          "all",
+          "assert_unknown",
+          "crash_fresh",
+          "durable_evidence",
+          "guarded_sqlite",
+          "history_evidence",
+          "inspect_knowledge",
+          "json.dumps",
+          "json.loads",
+          "monkeypatch.context",
+          "path.exists",
+          "pending.exists",
+          "pending.read_text",
+          "pending.write_text",
+          "physical_evidence",
+          "pytest.mark.parametrize",
+          "pytest.raises",
+          "raw",
+          "record_proof",
+          "run"
+        ],
+        "publication_fault_sites": [
+          "journal.prepared.after",
+          "publication.rename.after"
+        ],
+        "doctor": "Nonmutating inspection under existing lease; SQL opens verified outside state only.",
+        "runtime": "Public prepare_knowledge through real lease; full logical candidate history must agree before continuation."
+      },
+      "expected": {
+        "observations": {
+          "doctor_status": "recovery_required",
+          "runtime_status": "recovery_required",
+          "reason": "candidate_history_unverified",
+          "verification": "unknown",
+          "process_exit": 77,
+          "child_reaped": true,
+          "doctor_nonmutation": true,
+          "private_sql_only": true,
+          "private_copies_cleaned": true,
+          "fresh_history_count": null,
+          "fresh_history_digest": null,
+          "tamper_scope": "journal.history.digest only"
+        },
+        "assertion_predicates": [
+          "observation.lease_status == 'free'",
+          "physical_evidence(tmp_path) == before",
+          "paths and all((not path.exists() for path in paths))",
+          "observation.result.status == expected_status",
+          "{**changed, 'history': journal['history']} == journal",
+          "observation.result.reason == 'candidate_history_unverified'",
+          "failure.value.result.status == 'recovery_required'",
+          "failure.value.result.reason == 'candidate_history_unverified'",
+          "durable_evidence(tmp_path) == preserved",
+          "recovery_paths and all((not path.exists() for path in recovery_paths))",
+          "pending.exists()",
+          "observation.result.verification == 'passed'",
+          "observation.result.history_count == 0",
+          "observation.result.history_digest == EMPTY_HISTORY_DIGEST",
+          "recovery_paths and all((not path.exists() for path in recovery_paths))",
+          "prepared.result.status == 'created' and prepared.result.recovered",
+          "prepared.result.phase == 'COMPLETED' and prepared.result.verification == 'passed'",
+          "prepared.result.history_count == 0 and prepared.result.history_digest == EMPTY_HISTORY_DIGEST",
+          "not pending.exists()",
+          "raw(canonical) == []",
+          "proof['valid'] and proof['raw_value_type_match'] and (proof['count'] == 0)",
+          "proof['schema_columns'] == 14 and proof['private_copy_cleaned']",
+          "json.loads((archive / 'manifest.json').read_text())['history'] == journal['history']"
+        ],
+        "expected_exception_checks": [
+          "pytest.raises(KnowledgePreparationError)"
+        ],
+        "source": "tests/test_knowledge_recovery_history.py",
+        "source_sha256": "3c663147d1596aed318c6e6d41446a683ee4a9cb44cec7a732363e9200f305b5",
+        "fixture_oracle_source": "tests/test_knowledge_preparation.py",
+        "fixture_oracle_sha256": "d25f47ec5d95d721b984193251e72ad925143e253ec43729ff611e392f2c95c9"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "Only test-owned external state; intentional journal digest or companion tamper occurs before nonmutation baseline.",
+        "doctor": "No durable file, directory, inode, mode, content, owner metadata, or sidecar changes. Disposable private copies cleaned.",
+        "runtime": "Lease file and ownership metadata operations allowed. Rejected histories preserve every database/journal/archive/companion entry; valid histories continue exact recorded publication and complete archive manifest."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "enforcement": "SIGALRM and monotonic whole-case limit 20 seconds; actual crash subprocess timeout 5 seconds.",
+        "resources": "subprocess.run reaps crashed child exit77; all SQLite connections close; private copied paths removed; lease context exits.",
+        "state": "Per-case pytest state only; original user/deployed state untouched."
+      }
+    },
+    {
+      "id": "knowledge.pending_candidate_companions_refuse_unproven_history.wal",
+      "contract": "3/6/8",
+      "nodes": [
+        "tests/test_knowledge_recovery_history.py::test_pending_candidate_companions_refuse_unproven_history[wal]"
+      ],
+      "setup": {
+        "test": "test_pending_candidate_companions_refuse_unproven_history",
+        "parameters": {
+          "companion": "-wal"
+        },
+        "fixture_arguments": [
+          "tmp_path",
+          "request"
+        ],
+        "isolation": "External per-case state, actual independent child process and OS runtime lease. Fresh stage/publication interrupted by os._exit(77), not a mocked exception."
+      },
+      "operation": {
+        "entry_point": "tests/test_knowledge_recovery_history.py::test_pending_candidate_companions_refuse_unproven_history[wal]",
+        "called_functions": [
+          "Path",
+          "Path(str(authority) + companion).exists",
+          "Path(str(authority) + companion).write_bytes",
+          "assert_unknown",
+          "crash_fresh",
+          "durable_evidence",
+          "inspect_knowledge",
+          "pending.exists",
+          "physical_evidence",
+          "pytest.mark.parametrize",
+          "pytest.raises",
+          "record_proof",
+          "run",
+          "str"
+        ],
+        "publication_fault_sites": [
+          "journal.prepared.after"
+        ],
+        "doctor": "Nonmutating inspection under existing lease; SQL opens verified outside state only.",
+        "runtime": "Public prepare_knowledge through real lease; full logical candidate history must agree before continuation."
+      },
+      "expected": {
+        "observations": {
+          "doctor_status": "recovery_required",
+          "runtime_status": "recovery_required",
+          "reason": "candidate_unverified",
+          "verification": "unknown",
+          "history_count": null,
+          "history_digest": null,
+          "doctor_nonmutation": true,
+          "evidence_preserved": true,
+          "process_exit": 77,
+          "child_reaped": true
+        },
+        "assertion_predicates": [
+          "observation.result.status == 'recovery_required'",
+          "observation.result.reason == 'candidate_unverified'",
+          "physical_evidence(tmp_path) == before",
+          "failure.value.result.status == 'recovery_required'",
+          "failure.value.result.reason == 'candidate_unverified'",
+          "durable_evidence(tmp_path) == preserved",
+          "pending.exists() and Path(str(authority) + companion).exists()"
+        ],
+        "expected_exception_checks": [
+          "pytest.raises(KnowledgePreparationError)"
+        ],
+        "source": "tests/test_knowledge_recovery_history.py",
+        "source_sha256": "3c663147d1596aed318c6e6d41446a683ee4a9cb44cec7a732363e9200f305b5",
+        "fixture_oracle_source": "tests/test_knowledge_preparation.py",
+        "fixture_oracle_sha256": "d25f47ec5d95d721b984193251e72ad925143e253ec43729ff611e392f2c95c9"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "Only test-owned external state; intentional journal digest or companion tamper occurs before nonmutation baseline.",
+        "doctor": "No durable file, directory, inode, mode, content, owner metadata, or sidecar changes. Disposable private copies cleaned.",
+        "runtime": "Lease file and ownership metadata operations allowed. Rejected histories preserve every database/journal/archive/companion entry; valid histories continue exact recorded publication and complete archive manifest."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "enforcement": "SIGALRM and monotonic whole-case limit 20 seconds; actual crash subprocess timeout 5 seconds.",
+        "resources": "subprocess.run reaps crashed child exit77; all SQLite connections close; private copied paths removed; lease context exits.",
+        "state": "Per-case pytest state only; original user/deployed state untouched."
+      }
+    },
+    {
+      "id": "knowledge.pending_candidate_companions_refuse_unproven_history.shm",
+      "contract": "3/6/8",
+      "nodes": [
+        "tests/test_knowledge_recovery_history.py::test_pending_candidate_companions_refuse_unproven_history[shm]"
+      ],
+      "setup": {
+        "test": "test_pending_candidate_companions_refuse_unproven_history",
+        "parameters": {
+          "companion": "-shm"
+        },
+        "fixture_arguments": [
+          "tmp_path",
+          "request"
+        ],
+        "isolation": "External per-case state, actual independent child process and OS runtime lease. Fresh stage/publication interrupted by os._exit(77), not a mocked exception."
+      },
+      "operation": {
+        "entry_point": "tests/test_knowledge_recovery_history.py::test_pending_candidate_companions_refuse_unproven_history[shm]",
+        "called_functions": [
+          "Path",
+          "Path(str(authority) + companion).exists",
+          "Path(str(authority) + companion).write_bytes",
+          "assert_unknown",
+          "crash_fresh",
+          "durable_evidence",
+          "inspect_knowledge",
+          "pending.exists",
+          "physical_evidence",
+          "pytest.mark.parametrize",
+          "pytest.raises",
+          "record_proof",
+          "run",
+          "str"
+        ],
+        "publication_fault_sites": [
+          "journal.prepared.after"
+        ],
+        "doctor": "Nonmutating inspection under existing lease; SQL opens verified outside state only.",
+        "runtime": "Public prepare_knowledge through real lease; full logical candidate history must agree before continuation."
+      },
+      "expected": {
+        "observations": {
+          "doctor_status": "recovery_required",
+          "runtime_status": "recovery_required",
+          "reason": "candidate_unverified",
+          "verification": "unknown",
+          "history_count": null,
+          "history_digest": null,
+          "doctor_nonmutation": true,
+          "evidence_preserved": true,
+          "process_exit": 77,
+          "child_reaped": true
+        },
+        "assertion_predicates": [
+          "observation.result.status == 'recovery_required'",
+          "observation.result.reason == 'candidate_unverified'",
+          "physical_evidence(tmp_path) == before",
+          "failure.value.result.status == 'recovery_required'",
+          "failure.value.result.reason == 'candidate_unverified'",
+          "durable_evidence(tmp_path) == preserved",
+          "pending.exists() and Path(str(authority) + companion).exists()"
+        ],
+        "expected_exception_checks": [
+          "pytest.raises(KnowledgePreparationError)"
+        ],
+        "source": "tests/test_knowledge_recovery_history.py",
+        "source_sha256": "3c663147d1596aed318c6e6d41446a683ee4a9cb44cec7a732363e9200f305b5",
+        "fixture_oracle_source": "tests/test_knowledge_preparation.py",
+        "fixture_oracle_sha256": "d25f47ec5d95d721b984193251e72ad925143e253ec43729ff611e392f2c95c9"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "Only test-owned external state; intentional journal digest or companion tamper occurs before nonmutation baseline.",
+        "doctor": "No durable file, directory, inode, mode, content, owner metadata, or sidecar changes. Disposable private copies cleaned.",
+        "runtime": "Lease file and ownership metadata operations allowed. Rejected histories preserve every database/journal/archive/companion entry; valid histories continue exact recorded publication and complete archive manifest."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "enforcement": "SIGALRM and monotonic whole-case limit 20 seconds; actual crash subprocess timeout 5 seconds.",
+        "resources": "subprocess.run reaps crashed child exit77; all SQLite connections close; private copied paths removed; lease context exits.",
+        "state": "Per-case pytest state only; original user/deployed state untouched."
+      }
+    },
+    {
+      "id": "knowledge.pending_candidate_companions_refuse_unproven_history.journal",
+      "contract": "3/6/8",
+      "nodes": [
+        "tests/test_knowledge_recovery_history.py::test_pending_candidate_companions_refuse_unproven_history[journal]"
+      ],
+      "setup": {
+        "test": "test_pending_candidate_companions_refuse_unproven_history",
+        "parameters": {
+          "companion": "-journal"
+        },
+        "fixture_arguments": [
+          "tmp_path",
+          "request"
+        ],
+        "isolation": "External per-case state, actual independent child process and OS runtime lease. Fresh stage/publication interrupted by os._exit(77), not a mocked exception."
+      },
+      "operation": {
+        "entry_point": "tests/test_knowledge_recovery_history.py::test_pending_candidate_companions_refuse_unproven_history[journal]",
+        "called_functions": [
+          "Path",
+          "Path(str(authority) + companion).exists",
+          "Path(str(authority) + companion).write_bytes",
+          "assert_unknown",
+          "crash_fresh",
+          "durable_evidence",
+          "inspect_knowledge",
+          "pending.exists",
+          "physical_evidence",
+          "pytest.mark.parametrize",
+          "pytest.raises",
+          "record_proof",
+          "run",
+          "str"
+        ],
+        "publication_fault_sites": [
+          "journal.prepared.after"
+        ],
+        "doctor": "Nonmutating inspection under existing lease; SQL opens verified outside state only.",
+        "runtime": "Public prepare_knowledge through real lease; full logical candidate history must agree before continuation."
+      },
+      "expected": {
+        "observations": {
+          "doctor_status": "recovery_required",
+          "runtime_status": "recovery_required",
+          "reason": "candidate_unverified",
+          "verification": "unknown",
+          "history_count": null,
+          "history_digest": null,
+          "doctor_nonmutation": true,
+          "evidence_preserved": true,
+          "process_exit": 77,
+          "child_reaped": true
+        },
+        "assertion_predicates": [
+          "observation.result.status == 'recovery_required'",
+          "observation.result.reason == 'candidate_unverified'",
+          "physical_evidence(tmp_path) == before",
+          "failure.value.result.status == 'recovery_required'",
+          "failure.value.result.reason == 'candidate_unverified'",
+          "durable_evidence(tmp_path) == preserved",
+          "pending.exists() and Path(str(authority) + companion).exists()"
+        ],
+        "expected_exception_checks": [
+          "pytest.raises(KnowledgePreparationError)"
+        ],
+        "source": "tests/test_knowledge_recovery_history.py",
+        "source_sha256": "3c663147d1596aed318c6e6d41446a683ee4a9cb44cec7a732363e9200f305b5",
+        "fixture_oracle_source": "tests/test_knowledge_preparation.py",
+        "fixture_oracle_sha256": "d25f47ec5d95d721b984193251e72ad925143e253ec43729ff611e392f2c95c9"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "Only test-owned external state; intentional journal digest or companion tamper occurs before nonmutation baseline.",
+        "doctor": "No durable file, directory, inode, mode, content, owner metadata, or sidecar changes. Disposable private copies cleaned.",
+        "runtime": "Lease file and ownership metadata operations allowed. Rejected histories preserve every database/journal/archive/companion entry; valid histories continue exact recorded publication and complete archive manifest."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "enforcement": "SIGALRM and monotonic whole-case limit 20 seconds; actual crash subprocess timeout 5 seconds.",
+        "resources": "subprocess.run reaps crashed child exit77; all SQLite connections close; private copied paths removed; lease context exits.",
+        "state": "Per-case pytest state only; original user/deployed state untouched."
+      }
+    },
+    {
+      "id": "knowledge.pending_private_history_verification_failure_preserves_evidence.permission-doctor",
+      "contract": "3/6/8",
+      "nodes": [
+        "tests/test_knowledge_recovery_history.py::test_pending_private_history_verification_failure_preserves_evidence[permission-doctor]"
+      ],
+      "setup": {
+        "test": "test_pending_private_history_verification_failure_preserves_evidence",
+        "parameters": {
+          "failure_mode": "permission",
+          "lane": "doctor"
+        },
+        "fixture_arguments": [
+          "tmp_path",
+          "request"
+        ],
+        "isolation": "External per-case state, actual independent child process and OS runtime lease. Fresh stage/publication interrupted by os._exit(77), not a mocked exception."
+      },
+      "operation": {
+        "entry_point": "tests/test_knowledge_recovery_history.py::test_pending_private_history_verification_failure_preserves_evidence[permission-doctor]",
+        "called_functions": [
+          "PermissionError",
+          "all",
+          "assert_unknown",
+          "copies.append",
+          "copy.parent.exists",
+          "crash_fresh",
+          "destination.resolve",
+          "destination.resolve().is_relative_to",
+          "durable_evidence",
+          "inspect_knowledge",
+          "json.dumps",
+          "monkeypatch.setattr",
+          "original_copy",
+          "pending.exists",
+          "physical_evidence",
+          "pytest.mark.parametrize",
+          "pytest.raises",
+          "record_proof",
+          "result.as_dict",
+          "run",
+          "time.monotonic",
+          "tmp_path.resolve"
+        ],
+        "publication_fault_sites": [
+          "journal.prepared.after"
+        ],
+        "doctor": "Nonmutating inspection under existing lease; SQL opens verified outside state only.",
+        "runtime": "Public prepare_knowledge through real lease; full logical candidate history must agree before continuation."
+      },
+      "expected": {
+        "observations": {
+          "status": "inspection_unavailable",
+          "reason": "permission_denied",
+          "verification": "unknown",
+          "history_count": null,
+          "history_digest": null,
+          "private_copy_attempted": true,
+          "private_copies_cleaned": true,
+          "evidence_preserved": true,
+          "process_exit": 77,
+          "child_reaped": true
+        },
+        "assertion_predicates": [
+          "result.reason == ('permission_denied' if failure_mode == 'permission' else 'deadline_exceeded')",
+          "'SECRET' not in json.dumps(result.as_dict())",
+          "copies and all((not copy.parent.exists() for copy in copies))",
+          "durable_evidence(tmp_path) == preserved and pending.exists()",
+          "source == authority",
+          "not destination.resolve().is_relative_to(tmp_path.resolve())",
+          "result.status == 'inspection_unavailable'",
+          "physical_evidence(tmp_path) == before",
+          "result.status == 'migration_failed'"
+        ],
+        "expected_exception_checks": [
+          "pytest.raises(KnowledgePreparationError)"
+        ],
+        "source": "tests/test_knowledge_recovery_history.py",
+        "source_sha256": "3c663147d1596aed318c6e6d41446a683ee4a9cb44cec7a732363e9200f305b5",
+        "fixture_oracle_source": "tests/test_knowledge_preparation.py",
+        "fixture_oracle_sha256": "d25f47ec5d95d721b984193251e72ad925143e253ec43729ff611e392f2c95c9"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "Only test-owned external state; intentional journal digest or companion tamper occurs before nonmutation baseline.",
+        "doctor": "No durable file, directory, inode, mode, content, owner metadata, or sidecar changes. Disposable private copies cleaned.",
+        "runtime": "Lease file and ownership metadata operations allowed. Rejected histories preserve every database/journal/archive/companion entry; valid histories continue exact recorded publication and complete archive manifest."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "enforcement": "SIGALRM and monotonic whole-case limit 20 seconds; actual crash subprocess timeout 5 seconds.",
+        "resources": "subprocess.run reaps crashed child exit77; all SQLite connections close; private copied paths removed; lease context exits.",
+        "state": "Per-case pytest state only; original user/deployed state untouched."
+      }
+    },
+    {
+      "id": "knowledge.pending_private_history_verification_failure_preserves_evidence.permission-runtime",
+      "contract": "3/6/8",
+      "nodes": [
+        "tests/test_knowledge_recovery_history.py::test_pending_private_history_verification_failure_preserves_evidence[permission-runtime]"
+      ],
+      "setup": {
+        "test": "test_pending_private_history_verification_failure_preserves_evidence",
+        "parameters": {
+          "failure_mode": "permission",
+          "lane": "runtime"
+        },
+        "fixture_arguments": [
+          "tmp_path",
+          "request"
+        ],
+        "isolation": "External per-case state, actual independent child process and OS runtime lease. Fresh stage/publication interrupted by os._exit(77), not a mocked exception."
+      },
+      "operation": {
+        "entry_point": "tests/test_knowledge_recovery_history.py::test_pending_private_history_verification_failure_preserves_evidence[permission-runtime]",
+        "called_functions": [
+          "PermissionError",
+          "all",
+          "assert_unknown",
+          "copies.append",
+          "copy.parent.exists",
+          "crash_fresh",
+          "destination.resolve",
+          "destination.resolve().is_relative_to",
+          "durable_evidence",
+          "inspect_knowledge",
+          "json.dumps",
+          "monkeypatch.setattr",
+          "original_copy",
+          "pending.exists",
+          "physical_evidence",
+          "pytest.mark.parametrize",
+          "pytest.raises",
+          "record_proof",
+          "result.as_dict",
+          "run",
+          "time.monotonic",
+          "tmp_path.resolve"
+        ],
+        "publication_fault_sites": [
+          "journal.prepared.after"
+        ],
+        "doctor": "Nonmutating inspection under existing lease; SQL opens verified outside state only.",
+        "runtime": "Public prepare_knowledge through real lease; full logical candidate history must agree before continuation."
+      },
+      "expected": {
+        "observations": {
+          "status": "migration_failed",
+          "reason": "permission_denied",
+          "verification": "unknown",
+          "history_count": null,
+          "history_digest": null,
+          "private_copy_attempted": true,
+          "private_copies_cleaned": true,
+          "evidence_preserved": true,
+          "process_exit": 77,
+          "child_reaped": true
+        },
+        "assertion_predicates": [
+          "result.reason == ('permission_denied' if failure_mode == 'permission' else 'deadline_exceeded')",
+          "'SECRET' not in json.dumps(result.as_dict())",
+          "copies and all((not copy.parent.exists() for copy in copies))",
+          "durable_evidence(tmp_path) == preserved and pending.exists()",
+          "source == authority",
+          "not destination.resolve().is_relative_to(tmp_path.resolve())",
+          "result.status == 'inspection_unavailable'",
+          "physical_evidence(tmp_path) == before",
+          "result.status == 'migration_failed'"
+        ],
+        "expected_exception_checks": [
+          "pytest.raises(KnowledgePreparationError)"
+        ],
+        "source": "tests/test_knowledge_recovery_history.py",
+        "source_sha256": "3c663147d1596aed318c6e6d41446a683ee4a9cb44cec7a732363e9200f305b5",
+        "fixture_oracle_source": "tests/test_knowledge_preparation.py",
+        "fixture_oracle_sha256": "d25f47ec5d95d721b984193251e72ad925143e253ec43729ff611e392f2c95c9"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "Only test-owned external state; intentional journal digest or companion tamper occurs before nonmutation baseline.",
+        "doctor": "No durable file, directory, inode, mode, content, owner metadata, or sidecar changes. Disposable private copies cleaned.",
+        "runtime": "Lease file and ownership metadata operations allowed. Rejected histories preserve every database/journal/archive/companion entry; valid histories continue exact recorded publication and complete archive manifest."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "enforcement": "SIGALRM and monotonic whole-case limit 20 seconds; actual crash subprocess timeout 5 seconds.",
+        "resources": "subprocess.run reaps crashed child exit77; all SQLite connections close; private copied paths removed; lease context exits.",
+        "state": "Per-case pytest state only; original user/deployed state untouched."
+      }
+    },
+    {
+      "id": "knowledge.pending_private_history_verification_failure_preserves_evidence.deadline-doctor",
+      "contract": "3/6/8",
+      "nodes": [
+        "tests/test_knowledge_recovery_history.py::test_pending_private_history_verification_failure_preserves_evidence[deadline-doctor]"
+      ],
+      "setup": {
+        "test": "test_pending_private_history_verification_failure_preserves_evidence",
+        "parameters": {
+          "failure_mode": "deadline",
+          "lane": "doctor"
+        },
+        "fixture_arguments": [
+          "tmp_path",
+          "request"
+        ],
+        "isolation": "External per-case state, actual independent child process and OS runtime lease. Fresh stage/publication interrupted by os._exit(77), not a mocked exception."
+      },
+      "operation": {
+        "entry_point": "tests/test_knowledge_recovery_history.py::test_pending_private_history_verification_failure_preserves_evidence[deadline-doctor]",
+        "called_functions": [
+          "PermissionError",
+          "all",
+          "assert_unknown",
+          "copies.append",
+          "copy.parent.exists",
+          "crash_fresh",
+          "destination.resolve",
+          "destination.resolve().is_relative_to",
+          "durable_evidence",
+          "inspect_knowledge",
+          "json.dumps",
+          "monkeypatch.setattr",
+          "original_copy",
+          "pending.exists",
+          "physical_evidence",
+          "pytest.mark.parametrize",
+          "pytest.raises",
+          "record_proof",
+          "result.as_dict",
+          "run",
+          "time.monotonic",
+          "tmp_path.resolve"
+        ],
+        "publication_fault_sites": [
+          "journal.prepared.after"
+        ],
+        "doctor": "Nonmutating inspection under existing lease; SQL opens verified outside state only.",
+        "runtime": "Public prepare_knowledge through real lease; full logical candidate history must agree before continuation."
+      },
+      "expected": {
+        "observations": {
+          "status": "inspection_unavailable",
+          "reason": "deadline_exceeded",
+          "verification": "unknown",
+          "history_count": null,
+          "history_digest": null,
+          "private_copy_attempted": true,
+          "private_copies_cleaned": true,
+          "evidence_preserved": true,
+          "process_exit": 77,
+          "child_reaped": true
+        },
+        "assertion_predicates": [
+          "result.reason == ('permission_denied' if failure_mode == 'permission' else 'deadline_exceeded')",
+          "'SECRET' not in json.dumps(result.as_dict())",
+          "copies and all((not copy.parent.exists() for copy in copies))",
+          "durable_evidence(tmp_path) == preserved and pending.exists()",
+          "source == authority",
+          "not destination.resolve().is_relative_to(tmp_path.resolve())",
+          "result.status == 'inspection_unavailable'",
+          "physical_evidence(tmp_path) == before",
+          "result.status == 'migration_failed'"
+        ],
+        "expected_exception_checks": [
+          "pytest.raises(KnowledgePreparationError)"
+        ],
+        "source": "tests/test_knowledge_recovery_history.py",
+        "source_sha256": "3c663147d1596aed318c6e6d41446a683ee4a9cb44cec7a732363e9200f305b5",
+        "fixture_oracle_source": "tests/test_knowledge_preparation.py",
+        "fixture_oracle_sha256": "d25f47ec5d95d721b984193251e72ad925143e253ec43729ff611e392f2c95c9"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "Only test-owned external state; intentional journal digest or companion tamper occurs before nonmutation baseline.",
+        "doctor": "No durable file, directory, inode, mode, content, owner metadata, or sidecar changes. Disposable private copies cleaned.",
+        "runtime": "Lease file and ownership metadata operations allowed. Rejected histories preserve every database/journal/archive/companion entry; valid histories continue exact recorded publication and complete archive manifest."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "enforcement": "SIGALRM and monotonic whole-case limit 20 seconds; actual crash subprocess timeout 5 seconds.",
+        "resources": "subprocess.run reaps crashed child exit77; all SQLite connections close; private copied paths removed; lease context exits.",
+        "state": "Per-case pytest state only; original user/deployed state untouched."
+      }
+    },
+    {
+      "id": "knowledge.pending_private_history_verification_failure_preserves_evidence.deadline-runtime",
+      "contract": "3/6/8",
+      "nodes": [
+        "tests/test_knowledge_recovery_history.py::test_pending_private_history_verification_failure_preserves_evidence[deadline-runtime]"
+      ],
+      "setup": {
+        "test": "test_pending_private_history_verification_failure_preserves_evidence",
+        "parameters": {
+          "failure_mode": "deadline",
+          "lane": "runtime"
+        },
+        "fixture_arguments": [
+          "tmp_path",
+          "request"
+        ],
+        "isolation": "External per-case state, actual independent child process and OS runtime lease. Fresh stage/publication interrupted by os._exit(77), not a mocked exception."
+      },
+      "operation": {
+        "entry_point": "tests/test_knowledge_recovery_history.py::test_pending_private_history_verification_failure_preserves_evidence[deadline-runtime]",
+        "called_functions": [
+          "PermissionError",
+          "all",
+          "assert_unknown",
+          "copies.append",
+          "copy.parent.exists",
+          "crash_fresh",
+          "destination.resolve",
+          "destination.resolve().is_relative_to",
+          "durable_evidence",
+          "inspect_knowledge",
+          "json.dumps",
+          "monkeypatch.setattr",
+          "original_copy",
+          "pending.exists",
+          "physical_evidence",
+          "pytest.mark.parametrize",
+          "pytest.raises",
+          "record_proof",
+          "result.as_dict",
+          "run",
+          "time.monotonic",
+          "tmp_path.resolve"
+        ],
+        "publication_fault_sites": [
+          "journal.prepared.after"
+        ],
+        "doctor": "Nonmutating inspection under existing lease; SQL opens verified outside state only.",
+        "runtime": "Public prepare_knowledge through real lease; full logical candidate history must agree before continuation."
+      },
+      "expected": {
+        "observations": {
+          "status": "migration_failed",
+          "reason": "deadline_exceeded",
+          "verification": "unknown",
+          "history_count": null,
+          "history_digest": null,
+          "private_copy_attempted": true,
+          "private_copies_cleaned": true,
+          "evidence_preserved": true,
+          "process_exit": 77,
+          "child_reaped": true
+        },
+        "assertion_predicates": [
+          "result.reason == ('permission_denied' if failure_mode == 'permission' else 'deadline_exceeded')",
+          "'SECRET' not in json.dumps(result.as_dict())",
+          "copies and all((not copy.parent.exists() for copy in copies))",
+          "durable_evidence(tmp_path) == preserved and pending.exists()",
+          "source == authority",
+          "not destination.resolve().is_relative_to(tmp_path.resolve())",
+          "result.status == 'inspection_unavailable'",
+          "physical_evidence(tmp_path) == before",
+          "result.status == 'migration_failed'"
+        ],
+        "expected_exception_checks": [
+          "pytest.raises(KnowledgePreparationError)"
+        ],
+        "source": "tests/test_knowledge_recovery_history.py",
+        "source_sha256": "3c663147d1596aed318c6e6d41446a683ee4a9cb44cec7a732363e9200f305b5",
+        "fixture_oracle_source": "tests/test_knowledge_preparation.py",
+        "fixture_oracle_sha256": "d25f47ec5d95d721b984193251e72ad925143e253ec43729ff611e392f2c95c9"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "Only test-owned external state; intentional journal digest or companion tamper occurs before nonmutation baseline.",
+        "doctor": "No durable file, directory, inode, mode, content, owner metadata, or sidecar changes. Disposable private copies cleaned.",
+        "runtime": "Lease file and ownership metadata operations allowed. Rejected histories preserve every database/journal/archive/companion entry; valid histories continue exact recorded publication and complete archive manifest."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "enforcement": "SIGALRM and monotonic whole-case limit 20 seconds; actual crash subprocess timeout 5 seconds.",
+        "resources": "subprocess.run reaps crashed child exit77; all SQLite connections close; private copied paths removed; lease context exits.",
+        "state": "Per-case pytest state only; original user/deployed state untouched."
+      }
     }
   ],
   "fault_sites": [
@@ -156801,5 +157870,18 @@
     "knowledge_operation_seconds": 30,
     "shorter_enclosing_deadlines": "Injected deadlines and retention limits compose without resetting the operation budget.",
     "platform_limit": "Uninterruptible filesystem syscalls retain the disclosed platform timing limit; no abandoned initializer thread is permitted."
-  }
+  },
+  "required_branches": [
+    "knowledge.fresh_pending_history_requires_concrete_sql_proof.digest-corrupt-published",
+    "knowledge.fresh_pending_history_requires_concrete_sql_proof.digest-corrupt-staged",
+    "knowledge.fresh_pending_history_requires_concrete_sql_proof.untouched-published",
+    "knowledge.fresh_pending_history_requires_concrete_sql_proof.untouched-staged",
+    "knowledge.pending_candidate_companions_refuse_unproven_history.journal",
+    "knowledge.pending_candidate_companions_refuse_unproven_history.shm",
+    "knowledge.pending_candidate_companions_refuse_unproven_history.wal",
+    "knowledge.pending_private_history_verification_failure_preserves_evidence.deadline-doctor",
+    "knowledge.pending_private_history_verification_failure_preserves_evidence.deadline-runtime",
+    "knowledge.pending_private_history_verification_failure_preserves_evidence.permission-doctor",
+    "knowledge.pending_private_history_verification_failure_preserves_evidence.permission-runtime"
+  ]
 }

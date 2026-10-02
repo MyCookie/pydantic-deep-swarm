@@ -196,7 +196,10 @@ is separately bounded by byte and backup-count settings.
 
 Knowledge migration preserves full historical records through verified snapshots
 and a versioned roll-forward journal under `knowledge/`. Archives are excluded
-from ordinary retention. Doctor guards an existing lock without acquiring runtime
+from ordinary retention. Recovery verifies the staged or published candidate's
+complete SQL history against its recorded count and digest, including fresh
+journals with no source snapshots, before accepting or publishing that evidence.
+Doctor guards an existing lock without acquiring runtime
 ownership and validates complete private database copies outside state; it never
 opens source databases or creates their sidecars. See the
 [knowledge contract](knowledge-database-migration.md).

@@ -66,6 +66,9 @@ catalogs, prepares canonical knowledge once, recovers sessions, applies retentio
 and constructs the engine with that shared store. Preparation emits safe stderr
 diagnostics for selected source, verification, preserved history, migration,
 recovery and archive/journal guidance before retention changes any counts.
+Interrupted preparation verifies the staged or published database's complete
+history against the journal using disposable private copies before resuming;
+doctor performs the same verification without changing durable evidence.
 Disabled knowledge reports its selection without accessing databases. Readiness
 is published only after these gates and actual listener binding.
 

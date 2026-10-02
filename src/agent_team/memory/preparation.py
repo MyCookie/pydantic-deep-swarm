@@ -549,12 +549,46 @@ def _matches(path: Path, fingerprint: dict[str, Any], op: _Operation) -> bool:
     return path.exists() and _fingerprint(path, op) == fingerprint
 
 
-def _verify_recovery(journal: dict[str, Any], op: _Operation) -> None:
+def _verify_recovery(journal: dict[str, Any], op: _Operation, *, inspection: bool = False) -> None:
     _verify_recovery_layout(journal, op)
-    for snapshot in journal["snapshots"].values():
-        path = op.root / snapshot["path"]
-        if not _matches(path, snapshot["fingerprint"], op) or _validate(path, op) != snapshot["history"]:
-            raise _Problem("recovery_required", "snapshot_unverified")
+    # These copies are disposable verification material, not journaled durable
+    # transitions. Share the enclosing budget and generation guard without
+    # adding fault-hook occurrences to the publication protocol.
+    verifier = _Operation(op.root, op.budget.deadline, None)
+    verifier.budget = op.budget
+    verifier.write_guard = op.write_guard
+    with tempfile.TemporaryDirectory(prefix="agent-team-recovery-") as temporary:
+        def verify(path: Path, fingerprint: dict[str, Any], history: dict[str, Any], reason: str, history_reason: str) -> None:
+            for suffix in SUFFIXES[1:]:
+                companion = Path(str(path) + suffix)
+                _safe_path(op.root, companion)
+                if companion.exists():
+                    raise _Problem("recovery_required", reason)
+            if not _matches(path, fingerprint, op):
+                raise _Problem("recovery_required", reason)
+            copy = Path(temporary) / (uuid.uuid4().hex + ".db")
+            _copy_file(path, copy, verifier)
+            if not _matches(path, fingerprint, op):
+                raise _Problem("inspection_unavailable" if inspection else "recovery_required", "changed_source")
+            try:
+                actual = _validate(copy, verifier)
+            except _Problem as error:
+                if error.reason == "deadline_exceeded":
+                    raise
+                raise _Problem("recovery_required", reason) from None
+            if not _matches(path, fingerprint, op):
+                raise _Problem("inspection_unavailable" if inspection else "recovery_required", "changed_source")
+            if actual != history:
+                raise _Problem("recovery_required", history_reason)
+
+        for snapshot in journal["snapshots"].values():
+            verify(op.root / snapshot["path"], snapshot["fingerprint"], snapshot["history"], "snapshot_unverified", "snapshot_unverified")
+        candidate = op.root / journal["candidate"]
+        # Layout verification above proves the canonical path is the published
+        # candidate when the staged file has already been renamed. A retained
+        # winner keeps its staged candidate and its recorded source companions.
+        publication = candidate if candidate.exists() else _paths(op.root)["canonical"]
+        verify(publication, journal["candidate_fingerprint"], journal["history"], "candidate_unverified", "candidate_history_unverified")
 
 
 def _resume(journal: dict[str, Any], op: _Operation, *, recovered: bool) -> KnowledgeResult:
@@ -733,19 +767,7 @@ def inspect_knowledge(state_dir: Path | str, *, deadline: float | None = None) -
                 raise _Problem("recovery_required", "multiple_or_unknown_pending_journals")
             if pending.exists():
                 journal = _load_journal(pending, op)
-                # Recovery verification uses SQLite only on private artifacts.
-                with tempfile.TemporaryDirectory(prefix="agent-team-doctor-") as temp:
-                    for snapshot in journal["snapshots"].values():
-                        source = root / snapshot["path"]
-                        if not _matches(source, snapshot["fingerprint"], op):
-                            raise _Problem("recovery_required", "snapshot_unverified")
-                        copy = Path(temp) / (uuid.uuid4().hex + ".db")
-                        _copy_file(source, copy, op)
-                        if not _matches(source, snapshot["fingerprint"], op):
-                            raise _Problem("inspection_unavailable", "changed_source")
-                        if _validate(copy, op) != snapshot["history"]:
-                            raise _Problem("recovery_required", "snapshot_unverified")
-                    _verify_recovery_layout(journal, op)
+                _verify_recovery(journal, op, inspection=True)
                 result = _result(root, "recovery_pending", phase=journal["phase"], migration_id=journal["id"], archive_path=str(root / "knowledge" / "backups" / journal["id"]), journal_path=str(pending), selected_source=journal["selected"], history_count=journal["history"]["count"], history_digest=journal["history"]["digest"], verification="passed")
             else:
                 with tempfile.TemporaryDirectory(prefix="agent-team-doctor-") as temp:

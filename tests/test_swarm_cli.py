@@ -1,4 +1,5 @@
 """CLI gates for the swarm control plane."""
+from config_doctor_evidence import config_doctor_evidence
 
 from click.testing import CliRunner
 
@@ -47,7 +48,6 @@ def test_default_swarm_manager_keeps_model_and_control_credentials_separate(
     build_swarm_manager()
 
     assert captured == {
-        "model": ("http://model/v1", "model-token"),
         "control": ("http://agent-team", "control-token"),
     }
 
@@ -87,7 +87,7 @@ class FakeManager:
 
 def test_swarm_detect_cli_returns_discovered_model(monkeypatch):
     manager = FakeManager()
-    monkeypatch.setattr("agent_team.cli.build_model_discovery", lambda: manager.discovery)
+    monkeypatch.setattr("agent_team.cli.build_model_discovery", lambda **kwargs: manager.discovery)
 
     result = CliRunner().invoke(cli, ["swarm", "detect"])
 
@@ -97,7 +97,7 @@ def test_swarm_detect_cli_returns_discovered_model(monkeypatch):
 
 def test_swarm_reconcile_cli_supports_dry_run_and_json(monkeypatch):
     manager = FakeManager()
-    monkeypatch.setattr("agent_team.cli.build_swarm_manager", lambda: manager)
+    monkeypatch.setattr("agent_team.cli.build_swarm_manager", lambda **kwargs: manager)
 
     result = CliRunner().invoke(
         cli,

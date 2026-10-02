@@ -37,7 +37,7 @@ from .manager import create_manager_agent, fallback_manager_plan
 from .memory.agent_memory import AgentMemory
 from .memory.curator import MemoryCurator, create_curator_agent
 from .memory.knowledge import KnowledgeRecord, KnowledgeStore
-from .persistence import ProjectStore
+from .persistence import ProjectStore, RuntimeLease
 from .principal import (
     build_default_brief,
     create_principal_agent,
@@ -105,7 +105,33 @@ class ActiveProject:
 class AgentTeamEngine:
     """Orchestrate one Principal, one Team Manager, and bounded workers."""
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, *, knowledge_store=None, lease=None, models_resolved=False, deadline=None, register_resource=None):
+        state, workspace = ensure_external_runtime_paths(config.runtime.state_dir, workspace_dir=config.runtime.workspace_dir)
+        config = config.model_copy(deep=True)
+        config.runtime.state_dir, config.runtime.workspace_dir = state, workspace
+        self._owns_lease = lease is None
+        self._owns_knowledge = lease is None
+        self.lease = lease or RuntimeLease(config.runtime.state_dir / "runtime.lock").acquire()
+        generation = self.lease.generation
+        self.write_guard = lambda: self.lease.check_generation(generation)
+        self._active_projects = {}
+        self._run_tasks = {}
+        self._close_lock = asyncio.Lock()
+        self._closed = False
+        self.logger = runtime_logger
+        if register_resource is not None:
+            register_resource(self)
+        try:
+            if self._owns_knowledge and config.memory.enabled and config.memory.shared_knowledge:
+                from .memory.preparation import prepare_knowledge
+                knowledge_store = prepare_knowledge(config.runtime.state_dir, lease=self.lease, deadline=deadline).store
+            self._initialize(config, knowledge_store)
+        except BaseException:
+            if self._owns_lease:
+                self.lease.release()
+            raise
+
+    def _initialize(self, config: Config, knowledge_store) -> None:
         self.config = config
         self.logger = runtime_logger
         state_dir, workspace_dir = ensure_external_runtime_paths(
@@ -135,7 +161,7 @@ class AgentTeamEngine:
         )
         self.process_manager = __import__(
             "agent_team.runtime.lifecycle", fromlist=["ProcessManager"]
-        ).ProcessManager(self.registry)
+        ).ProcessManager(self.registry, lease=self.lease, scratch_root=config.runtime.state_dir / "scratch")
         self.canceller = HardCanceller(self.registry, self.process_manager)
         self.timeout_enforcer = TimeoutEnforcer(
             self.registry,
@@ -148,14 +174,10 @@ class AgentTeamEngine:
         state_dir = config.runtime.state_dir
         state_dir.mkdir(parents=True, exist_ok=True)
         workspace = getattr(config.runtime, "workspace_dir", None) or state_dir / "workspace"
-        self.artifact_store = ArtifactStore(workspace, state_dir / "artifacts")
-        self.project_store = ProjectStore(state_dir / "projects")
+        self.artifact_store = ArtifactStore(workspace, state_dir / "artifacts", write_guard=self.write_guard)
+        self.project_store = ProjectStore(state_dir / "projects", write_guard=self.write_guard)
         memory_enabled = bool(config.memory.enabled)
-        self.knowledge_store = (
-            KnowledgeStore(state_dir / "knowledge.db")
-            if memory_enabled and config.memory.shared_knowledge
-            else None
-        )
+        self.knowledge_store = knowledge_store
         self.curator = (
             MemoryCurator(
                 curator_agent=create_curator_agent(self.curator_model),
@@ -169,10 +191,10 @@ class AgentTeamEngine:
             else None
         )
         self.principal_memory = (
-            AgentMemory("principal", state_dir / "memory") if memory_enabled else None
+            AgentMemory("principal", state_dir / "memory", write_guard=self.write_guard) if memory_enabled else None
         )
         self.manager_memory = (
-            AgentMemory("manager", state_dir / "memory") if memory_enabled else None
+            AgentMemory("manager", state_dir / "memory", write_guard=self.write_guard) if memory_enabled else None
         )
         self._role_memories: dict[str, AgentMemory] = {}
 
@@ -187,15 +209,14 @@ class AgentTeamEngine:
             raise ValueError("Model config required")
         from .models.http_model import create_simple_model
 
-        base_url = model_config.base_url or os.getenv("LLM_BASE_URL", "http://model-service:8000/v1")
+        base_url = model_config.base_url
         canonical_base_url = base_url.rstrip("/")
         api_key = os.getenv("LLM_API_KEY", "")
-        model_name = model_config.model or os.getenv("LLM_MODEL", "auto")
+        model_name = model_config.model
         if model_name == "auto":
             if canonical_base_url not in self._discovered_models:
                 self._discovered_models[canonical_base_url] = OpenAIModelDiscovery(
                     canonical_base_url,
-                    api_key=api_key,
                 ).detect_model()
             model_name = self._discovered_models[canonical_base_url]
             model_config.model = model_name
@@ -371,15 +392,18 @@ class AgentTeamEngine:
         """Stop all projects, reap resources, and make shutdown idempotent."""
         async with self._close_lock:
             if self._closed:
+                if getattr(self, "_close_error", False):
+                    raise RuntimeError("runtime_shutdown_cleanup_failed")
                 return
             self._closed = True
+            cleanup_errors = []
             current = asyncio.current_task()
             projects = list(self._active_projects.values())
             for project in projects:
                 try:
                     await self._cancel_project_tree(project, cancel_root=False)
-                except Exception:
-                    self.logger.exception("project_shutdown_cleanup_failed project=%s", project.project_id)
+                except Exception as exc:
+                    cleanup_errors.append(type(exc).__name__)
 
             root_tasks = [
                 task for task in self._run_tasks.values()
@@ -393,22 +417,31 @@ class AgentTeamEngine:
             for project in list(self._active_projects.values()):
                 try:
                     await self._cleanup_project(project, cancel=True)
-                except Exception:
-                    self.logger.exception("project_shutdown_finalize_failed project=%s", project.project_id)
+                except Exception as exc:
+                    cleanup_errors.append(type(exc).__name__)
             try:
-                await self.process_manager.terminate_all_workers(hard=True)
-            except Exception:
-                self.logger.exception("process_shutdown_cleanup_failed")
+                if hasattr(self, "process_manager"):
+                    await self.process_manager.terminate_all_workers(hard=True)
+            except Exception as exc:
+                cleanup_errors.append(type(exc).__name__)
             try:
-                await self.timeout_enforcer.close()
-            except Exception:
-                self.logger.exception("deadline_shutdown_cleanup_failed")
+                if hasattr(self, "timeout_enforcer"):
+                    await self.timeout_enforcer.close()
+            except Exception as exc:
+                cleanup_errors.append(type(exc).__name__)
             try:
-                await self.registry.cleanup()
-            except Exception:
-                self.logger.exception("registry_shutdown_cleanup_failed")
+                if hasattr(self, "registry"):
+                    await self.registry.cleanup()
+            except Exception as exc:
+                cleanup_errors.append(type(exc).__name__)
             self._active_projects.clear()
             self._run_tasks.clear()
+            if cleanup_errors:
+                self._close_error = True
+                raise RuntimeError("runtime_shutdown_cleanup_failed")
+            if self._owns_lease:
+                self.lease.mark_stopping()
+                self.lease.release()
 
     def _principal_memory_summary(self) -> dict[str, Any]:
         """Expose only Principal-global memory to Principal prompts."""
@@ -432,10 +465,10 @@ class AgentTeamEngine:
             return {}
         role_memory = self._role_memories.setdefault(
             role,
-            AgentMemory(f"worker-{role}", self.config.runtime.state_dir / "memory"),
+            AgentMemory(f"worker-{role}", self.config.runtime.state_dir / "memory", write_guard=self.write_guard),
         )
         project_memory = AgentMemory(
-            f"worker-{role}", self.config.runtime.state_dir / "memory", scope=project_id
+            f"worker-{role}", self.config.runtime.state_dir / "memory", scope=project_id, write_guard=self.write_guard
         )
         limit = getattr(self.config.memory, "recent_items", 8)
         return {
@@ -491,7 +524,12 @@ class AgentTeamEngine:
                 response = raw if isinstance(raw, str) else str(raw or "")
             except Exception as exc:
                 self.logger.warning("principal direct response failed: %s", exc)
-                response = "I can answer that directly, but the Principal model did not return a usable response."
+                return PrincipalTurnResult(
+                    action="answer", response="The Principal model request failed.",
+                    report=CompletionReport(status="failed", summary="The Principal model request failed before an answer was produced.",
+                                            unresolved_items=["Model request failed."]),
+                    validation_issues=["Model request failed."],
+                )
         return PrincipalTurnResult(
             action="answer",
             response=redact_sensitive_text(response).strip(),
@@ -1206,23 +1244,26 @@ class AgentTeamEngine:
     async def _cleanup_project(self, project: ActiveProject, *, cancel: bool) -> None:
         """Reap one project without touching resources owned by other projects."""
         worker_ids = list(dict.fromkeys(project.worker_ids.values()))
+        errors = []
         active_tasks = [task for task in project.worker_tasks.values() if not task.done()]
         if cancel or active_tasks:
             await self._cancel_project_tree(project, cancel_root=False)
         for worker_id in worker_ids:
             try:
                 await self.process_manager.terminate_worker_processes(worker_id, hard=True)
-            except Exception:
-                self.logger.exception("project_process_cleanup_failed project=%s worker=%s", project.project_id, worker_id)
+            except Exception as exc:
+                errors.append(type(exc).__name__)
         try:
             await self.registry.cleanup(worker_ids)
-        except Exception:
-            self.logger.exception("project_registry_cleanup_failed project=%s", project.project_id)
+        except Exception as exc:
+            errors.append(type(exc).__name__)
         for worker_id in worker_ids:
             try:
                 await self.process_manager.terminate_worker_processes(worker_id, hard=True)
-            except Exception:
-                self.logger.exception("project_process_reap_failed project=%s worker=%s", project.project_id, worker_id)
+            except Exception as exc:
+                errors.append(type(exc).__name__)
+        if errors:
+            raise RuntimeError("project_shutdown_cleanup_failed")
         project.worker_tasks.clear()
         project.worker_ids.clear()
 
@@ -1262,7 +1303,7 @@ class AgentTeamEngine:
                 self.principal_memory.add_decision(
                     f"Project {project_id} returned {report.status}.", compact_context
                 )
-                AgentMemory("principal", self.config.runtime.state_dir / "memory", scope=project_id).add_decision(
+                AgentMemory("principal", self.config.runtime.state_dir / "memory", scope=project_id, write_guard=self.write_guard).add_decision(
                     f"Project {project_id} returned {report.status}.", compact_context
                 )
             if self.manager_memory:
@@ -1270,17 +1311,17 @@ class AgentTeamEngine:
                 self.manager_memory.add_decision(
                     f"Used {len(plan.tasks)} worker assignment(s) for project {project_id}.", manager_context
                 )
-                AgentMemory("manager", self.config.runtime.state_dir / "memory", scope=project_id).add_decision(
+                AgentMemory("manager", self.config.runtime.state_dir / "memory", scope=project_id, write_guard=self.write_guard).add_decision(
                     f"Used {len(plan.tasks)} worker assignment(s) for project {project_id}.", manager_context
                 )
             for result in worker_results:
                 memory = self._role_memories.setdefault(
-                    result.role, AgentMemory(f"worker-{result.role}", self.config.runtime.state_dir / "memory")
+                    result.role, AgentMemory(f"worker-{result.role}", self.config.runtime.state_dir / "memory", write_guard=self.write_guard)
                 )
                 if result.summary:
                     memory.add_lesson(result.summary[:500], category="execution")
                     AgentMemory(
-                        f"worker-{result.role}", self.config.runtime.state_dir / "memory", scope=project_id
+                        f"worker-{result.role}", self.config.runtime.state_dir / "memory", scope=project_id, write_guard=self.write_guard
                     ).add_lesson(result.summary[:500], category="execution")
             if self.knowledge_store is not None:
                 for finding in report.important_findings[:10]:

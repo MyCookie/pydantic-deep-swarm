@@ -21,7 +21,10 @@ class ArtifactStore:
     manifest using an atomic replace.
     """
 
-    def __init__(self, workspace: Path | str, manifest_root: Path | str):
+    def __init__(self, workspace: Path | str, manifest_root: Path | str, *, write_guard=None):
+        self.write_guard = write_guard
+        if write_guard is not None:
+            write_guard()
         self.workspace = Path(workspace).expanduser().resolve()
         self.manifest_root = Path(manifest_root).expanduser()
         self.workspace.mkdir(parents=True, exist_ok=True)
@@ -105,6 +108,8 @@ class ArtifactStore:
         })
 
     def write_manifest(self, project_id: str, artifacts: Iterable[ArtifactResult]) -> Path:
+        if self.write_guard is not None:
+            self.write_guard()
         directory = self.manifest_root / self._safe_component(project_id)
         directory.mkdir(parents=True, exist_ok=True)
         path = directory / "artifacts.json"
@@ -121,6 +126,8 @@ class ArtifactStore:
                 handle.write("\n")
                 handle.flush()
                 os.fsync(handle.fileno())
+            if self.write_guard is not None:
+                self.write_guard()
             os.replace(temporary, path)
         finally:
             if os.path.exists(temporary):

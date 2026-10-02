@@ -266,6 +266,8 @@ async def test_runtime_startup_recovers_then_applies_configured_retention(
     app_module.runtime_lease = None
     app_module.logger = startup_logger
     monkeypatch.setattr(app_module, "get_config", lambda _path=None: config)
+    import agent_team.control.discovery as discovery_module
+    monkeypatch.setattr(discovery_module, "resolve_role_models", lambda config, **kwargs: (config, {}))
 
     try:
         app_module._initialize_runtime()

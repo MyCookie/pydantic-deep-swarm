@@ -63,7 +63,8 @@ async def test_health_is_liveness_only_and_ready_fails_closed_until_initialized(
             assert missing_lease.status_code == 503
             assert missing_lease.json()["reason"] == "runtime_not_owned"
 
-            app_module.runtime_lease = object()
+            from types import SimpleNamespace
+            app_module.runtime_lease = SimpleNamespace(is_held=True)
             inaccessible = await client.get("/ready")
             assert inaccessible.status_code == 503
             assert inaccessible.json()["reason"] == "state_dir_not_accessible"

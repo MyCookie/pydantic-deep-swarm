@@ -246,7 +246,7 @@ def test_removed_command_tool_never_registers_a_process(tmp_path):
 
 
 def test_matrix_plugin_registers_typed_tool_without_gateway_bypass():
-    plugin_path = Path.home() / ".hermes/plugins/principal-agent-team/__init__.py"
+    plugin_path = Path(__file__).resolve().parents[1] / "integrations/hermes/principal-agent-team/__init__.py"
     spec = importlib.util.spec_from_file_location("principal_agent_team_acceptance", plugin_path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

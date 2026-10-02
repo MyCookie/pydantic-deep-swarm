@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import os
-import shutil
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from .config import RetentionConfig
 from .persistence import SessionStore
@@ -31,10 +31,16 @@ def _cutoff(now: datetime, days: float | None) -> datetime | None:
     return now - timedelta(days=days)
 
 
-def _latest_mtime(directory: Path) -> datetime | None:
+def _deadline(deadline: float | None) -> None:
+    if deadline is not None and time.monotonic() >= deadline:
+        raise TimeoutError("Retention deadline exceeded")
+
+
+def _latest_mtime(directory: Path, deadline: float | None = None) -> datetime | None:
     """Return the latest tree mtime, skipping trees containing symlinks."""
     latest: float | None = None
     for root, directories, files in os.walk(directory, followlinks=False):
+        _deadline(deadline)
         root_path = Path(root)
         entries = [*(root_path / name for name in directories), *(root_path / name for name in files)]
         if any(entry.is_symlink() for entry in entries):
@@ -48,12 +54,13 @@ def _latest_mtime(directory: Path) -> datetime | None:
     return datetime.fromtimestamp(latest, tz=timezone.utc) if latest is not None else None
 
 
-def _prune_directories(root: Path, cutoff: datetime | None) -> int:
+def _prune_directories(root: Path, cutoff: datetime | None, deadline: float | None = None, write_guard: Callable[[], None] | None = None) -> int:
     if cutoff is None or not root.is_dir() or root.is_symlink():
         return 0
     root_resolved = root.resolve()
     removed = 0
     for directory in sorted(root.iterdir()):
+        _deadline(deadline)
         if not directory.is_dir() or directory.is_symlink():
             continue
         try:
@@ -61,9 +68,23 @@ def _prune_directories(root: Path, cutoff: datetime | None) -> int:
                 continue
         except OSError:
             continue
-        modified = _latest_mtime(directory)
+        modified = _latest_mtime(directory, deadline)
         if modified is not None and modified < cutoff:
-            shutil.rmtree(directory)
+            for current, directories, files in os.walk(directory, topdown=False, followlinks=False):
+                for name in files:
+                    _deadline(deadline)
+                    if write_guard:
+                        write_guard()
+                    (Path(current) / name).unlink()
+                for name in directories:
+                    _deadline(deadline)
+                    if write_guard:
+                        write_guard()
+                    (Path(current) / name).rmdir()
+            _deadline(deadline)
+            if write_guard:
+                write_guard()
+            directory.rmdir()
             removed += 1
     return removed
 
@@ -71,9 +92,10 @@ def _prune_directories(root: Path, cutoff: datetime | None) -> int:
 class DurableRetention:
     """Apply explicitly configured retention to Agent Team-owned durable state."""
 
-    def __init__(self, state_dir: Path | str, config: RetentionConfig):
+    def __init__(self, state_dir: Path | str, config: RetentionConfig, *, write_guard: Callable[[], None] | None = None):
         self.state_dir = Path(state_dir).expanduser().resolve()
         self.config = config
+        self.write_guard = write_guard
 
     def sweep(
         self,
@@ -81,8 +103,12 @@ class DurableRetention:
         session_store: SessionStore,
         knowledge_store: KnowledgeStore | None = None,
         now: datetime | None = None,
+        deadline: float | None = None,
     ) -> RetentionSweepResult:
         observed_now = now or datetime.now(timezone.utc)
+        _deadline(deadline)
+        if self.write_guard:
+            self.write_guard()
         if observed_now.tzinfo is None:
             raise ValueError("retention sweep time must be timezone-aware")
 
@@ -91,12 +117,14 @@ class DurableRetention:
         memory_cutoff = _cutoff(observed_now, self.config.memory_max_age_days)
         knowledge_cutoff = _cutoff(observed_now, self.config.knowledge_max_age_days)
 
-        sessions = session_store.prune_before(session_cutoff) if session_cutoff else 0
-        projects = _prune_directories(self.state_dir / "projects", project_cutoff)
-        artifacts = _prune_directories(self.state_dir / "artifacts", project_cutoff)
-        memory_scopes = _prune_directories(self.state_dir / "memory", memory_cutoff)
+        sessions = session_store.prune_before(session_cutoff, deadline=deadline) if session_cutoff else 0
+        _deadline(deadline)
+        projects = _prune_directories(self.state_dir / "projects", project_cutoff, deadline, self.write_guard)
+        artifacts = _prune_directories(self.state_dir / "artifacts", project_cutoff, deadline, self.write_guard)
+        memory_scopes = _prune_directories(self.state_dir / "memory", memory_cutoff, deadline, self.write_guard)
+        _deadline(deadline)
         knowledge_records = (
-            knowledge_store.prune_before(knowledge_cutoff)
+            knowledge_store.prune_before(knowledge_cutoff, deadline=deadline)
             if knowledge_store is not None and knowledge_cutoff is not None
             else 0
         )

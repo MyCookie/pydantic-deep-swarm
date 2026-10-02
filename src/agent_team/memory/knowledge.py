@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Iterator, TypeVar
+from urllib.parse import quote
 
 from pydantic import BaseModel, Field
 
@@ -100,12 +101,24 @@ class KnowledgeStore:
         *,
         busy_timeout_ms: int = DEFAULT_BUSY_TIMEOUT_MS,
         max_retries: int = DEFAULT_MAX_RETRIES,
+        initialize: bool = True,
+        write_guard: Callable[[], None] | None = None,
     ):
+        self.write_guard = write_guard
+        self._check_write()
         self.db_path = Path(db_path).expanduser()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.busy_timeout_ms = max(1_000, int(busy_timeout_ms))
         self.max_retries = max(1, int(max_retries))
-        self._init_db()
+        self._allow_create = initialize
+        if initialize:
+            self._check_write()
+            self._init_db()
+        self._allow_create = False
+
+    def _check_write(self) -> None:
+        if self.write_guard:
+            self.write_guard()
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
@@ -115,8 +128,11 @@ class KnowledgeStore:
         initialization. Busy timeout and foreign-key enforcement are per
         connection, so they are applied here for every operation.
         """
+        self._check_write()
+        location = self.db_path if self._allow_create else "file:" + quote(str(self.db_path.resolve())) + "?mode=rw"
         connection = sqlite3.connect(
-            self.db_path,
+            location,
+            uri=not self._allow_create,
             timeout=self.busy_timeout_ms / 1000,
             isolation_level=None,
         )
@@ -139,20 +155,29 @@ class KnowledgeStore:
         message = str(error).lower()
         return "database is locked" in message or "database is busy" in message
 
-    def _with_retry(self, operation: Callable[[], T]) -> T:
+    def _with_retry(self, operation: Callable[[], T], *, deadline: float | None = None) -> T:
         """Retry only transient SQLite lock failures with bounded backoff."""
         for attempt in range(self.max_retries):
+            if deadline is not None and time.monotonic() >= deadline:
+                raise TimeoutError("Knowledge operation deadline exceeded")
             try:
                 return operation()
             except sqlite3.OperationalError as error:
                 if not self._is_transient_lock(error) or attempt == self.max_retries - 1:
                     raise
-                time.sleep(min(0.25, 0.01 * (2 ** attempt)))
+                pause = min(0.25, 0.01 * (2 ** attempt))
+                if deadline is not None:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise TimeoutError("Knowledge operation deadline exceeded") from None
+                    pause = min(pause, remaining)
+                time.sleep(pause)
         raise AssertionError("unreachable")
 
     def _init_db(self) -> None:
         """Initialize or migrate the database schema atomically."""
         def initialize() -> None:
+            self._check_write()
             with self._connect() as connection:
                 # journal_mode must be set outside an explicit transaction.
                 connection.execute("PRAGMA journal_mode = WAL")
@@ -201,6 +226,7 @@ class KnowledgeStore:
                 connection.execute(
                     "CREATE INDEX IF NOT EXISTS idx_supersedes ON knowledge_records(supersedes)"
                 )
+                self._check_write()
                 connection.commit()
 
         self._with_retry(initialize)
@@ -248,6 +274,7 @@ class KnowledgeStore:
         prepared = self._prepared_record(record)
 
         def insert() -> str:
+            self._check_write()
             with self._connect() as connection:
                 connection.execute("BEGIN IMMEDIATE")
                 connection.execute("""
@@ -258,6 +285,7 @@ class KnowledgeStore:
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO NOTHING
                 """, self._record_values(prepared))
+                self._check_write()
                 connection.commit()
             return prepared.id
 
@@ -268,6 +296,7 @@ class KnowledgeStore:
         prepared = self._prepared_record(record)
 
         def replace() -> None:
+            self._check_write()
             with self._connect() as connection:
                 connection.execute("BEGIN IMMEDIATE")
                 connection.execute("""
@@ -291,6 +320,7 @@ class KnowledgeStore:
                     json.dumps(prepared.source_artifacts),
                     prepared.id,
                 ))
+                self._check_write()
                 connection.commit()
 
         self._with_retry(replace)
@@ -306,6 +336,7 @@ class KnowledgeStore:
             raise ValueError("A knowledge record cannot supersede itself")
 
         def replace() -> bool:
+            self._check_write()
             with self._connect() as connection:
                 connection.execute("BEGIN IMMEDIATE")
                 old = connection.execute(
@@ -330,6 +361,7 @@ class KnowledgeStore:
                     "WHERE id=? AND (supersedes IS NULL OR supersedes=?)",
                     (new_id, datetime.utcnow().isoformat(), old_id, new_id),
                 )
+                self._check_write()
                 connection.commit()
                 return True
 
@@ -473,13 +505,19 @@ class KnowledgeStore:
 
         return self._with_retry(count_records)
 
-    def prune_before(self, cutoff: datetime) -> int:
+    def prune_before(self, cutoff: datetime, *, deadline: float | None = None) -> int:
         """Atomically remove records older than a cutoff without dangling links."""
         if cutoff.tzinfo is None:
             raise ValueError("knowledge retention cutoff must be timezone-aware")
 
         def remove_expired() -> int:
+            self._check_write()
+            if deadline is not None and time.monotonic() >= deadline:
+                raise TimeoutError("Knowledge retention deadline exceeded")
             with self._connect() as connection:
+                if deadline is not None:
+                    connection.set_progress_handler(lambda: int(time.monotonic() >= deadline), 100)
+                    connection.execute(f"PRAGMA busy_timeout = {max(1, int((deadline - time.monotonic()) * 1000))}")
                 connection.execute("BEGIN IMMEDIATE")
                 rows = connection.execute(
                     "SELECT id FROM knowledge_records "
@@ -500,10 +538,13 @@ class KnowledgeStore:
                     f"DELETE FROM knowledge_records WHERE id IN ({placeholders})",
                     record_ids,
                 )
+                self._check_write()
+                if deadline is not None and time.monotonic() >= deadline:
+                    raise TimeoutError("Knowledge retention deadline exceeded")
                 connection.commit()
                 return int(cursor.rowcount)
 
-        return self._with_retry(remove_expired)
+        return self._with_retry(remove_expired, deadline=deadline)
 
     def delete(self, record_id: str) -> bool:
         """Atomically delete a record."""

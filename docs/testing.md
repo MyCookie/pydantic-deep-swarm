@@ -1,11 +1,36 @@
 # Agent Team testing
 
 The [standalone acceptance gate](standalone-acceptance-gate.md) specifies issue #8's
-future fresh-clone `uv sync --frozen`, installed CLI, deterministic loopback model,
+fresh-clone `uv sync --frozen`, installed CLI, deterministic loopback model,
 signal, migration, nonpollution, and evidence requirements. The developer commands
-below describe the existing suite. Their `PYTHONPATH` workflow and opt-in skips do
-not establish that future installed-clone gate; publication-only checks do not
+below describe the suite. Individual developer runs and opt-in skips do
+not establish the installed-clone gate; publication-only checks do not
 claim standalone runtime acceptance.
+
+Run `.venv/bin/python scripts/run_isolated_tests.py` for the installed deterministic
+suite with a private HOME/state/workspace and an allowlisted child environment.
+`--inventory /absolute/external/test-inventory.json` retains every collected
+node, phase, outcome, optional exclusion, and unexpected required skip.
+
+For a committed clean candidate, create an existing report directory outside the
+checkout and run:
+
+```sh
+.venv/bin/python scripts/run_standalone_acceptance.py \
+  --candidate /absolute/candidate-checkout \
+  --report-dir /absolute/external/acceptance-reports
+```
+
+The controller provisions an exact-revision fresh clone, runs the installed
+suite, builds and installs a same-revision wheel using hash-locked exported
+runtime dependencies, reproduces the historical path escape independently, and
+exercises optional-asset absence. Its strict loopback fixture runs actual
+catalog/completion HTTP, typed direct/delegated requests, real worker tools, exact
+artifact-byte verification, persisted report restart, signal exits, and
+nonmutating fresh/busy/stopped doctor checks. Reports retain command logs,
+versions, lock/export/wheel hashes, origins, filesystem proofs, and process events.
+The fixture proves deterministic runtime behavior; actual inference and installed
+deployment integrations retain their separate explicitly selected lanes.
 
 ## Test layers
 
@@ -34,8 +59,9 @@ export PYTHONPATH=src
 .venv/bin/python -m pytest tests/ -q -p no:cacheprovider
 ```
 
-The deterministic suite must not require a model endpoint. Model and HTTP edges
-use typed stubs, mock transports, or an in-process ASGI application.
+The deterministic suite must not require an external model endpoint. Model and
+HTTP edges use typed stubs, mock transports, in-process ASGI applications, or
+strict test-owned loopback HTTP fixtures.
 
 Compile source, tests, and Pi validation code:
 
@@ -105,9 +131,10 @@ the Agent Team test workflow.
 
 `ASGITransport` does not automatically own application lifespan. Deterministic
 HTTP tests therefore inject isolated configuration, engine, and session-store
-state before creating the client, then restore it afterward. Tests that exercise
-the real supervised startup and shutdown path belong in the explicit live E2E
-lane.
+state before creating the client, then restore it afterward. The foreground
+contract suite separately starts real owner processes against loopback fixtures
+to verify signals, startup failures, and lease reuse. Actual deployed supervision
+and external inference belong in the explicit live E2E lane.
 
 `tests/test_test_suite_integrity.py` scans every test module and fails if a
 Starlette or FastAPI `TestClient` import is reintroduced.

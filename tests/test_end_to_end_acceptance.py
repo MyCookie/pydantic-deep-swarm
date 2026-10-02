@@ -409,7 +409,7 @@ class Gateway:
 
 @pytest.mark.asyncio
 async def test_matrix_plugin_registers_and_calls_typed_delegation_tool(tmp_path):
-    plugin_path = Path.home() / ".hermes/plugins/principal-agent-team/__init__.py"
+    plugin_path = Path(__file__).resolve().parents[1] / "integrations/hermes/principal-agent-team/__init__.py"
     spec = importlib.util.spec_from_file_location("principal_agent_team_e2e", plugin_path)
     plugin = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(plugin)

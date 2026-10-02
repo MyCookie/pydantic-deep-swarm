@@ -21,6 +21,9 @@ EXPECTED_DOCS = {
     "foreground-serve-contract.md",
     "standalone-acceptance-gate.md",
     "testing.md",
+    "configuration-contract.md",
+    "doctor-contract.md",
+    "knowledge-database-migration.md",
 }
 STALE_TOP_LEVEL = {
     "ARCHITECTURE.md",

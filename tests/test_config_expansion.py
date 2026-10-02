@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from config_doctor_evidence import config_doctor_evidence
+
 from click.testing import CliRunner
 import pytest
 
@@ -79,14 +81,13 @@ def test_generated_init_config_resolves_all_role_models_and_endpoints(tmp_path, 
     result = CliRunner().invoke(cli, ["init"])
 
     assert result.exit_code == 0, result.output
-    config_path = state_dir / "config" / "config.yaml"
+    config_path = tmp_path / "missing.yaml"
     assert config_path.is_file()
     generated = config_path.read_text(encoding="utf-8")
     assert "retention:" in generated
     assert "max_session_messages: 200" in generated
     assert "session_max_age_days: null" in generated
     assert "log_max_bytes: null" in generated
-    monkeypatch.delenv("AGENT_TEAM_CONFIG_FILE")
     config = Config.from_env()
     assert config.models["principal"].base_url == "http://principal"
     assert config.models["manager"].base_url == "http://shared"

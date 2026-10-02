@@ -57,29 +57,39 @@ sessions and checkpoints outside the source checkout.
 
 ## Quick start
 
-Provision Python and the model endpoint separately, then set deployment values
-from [`.env.example`](.env.example). At minimum:
+Provision the repository's locked Python environment and select a model endpoint:
 
 ```sh
-export AGENT_TEAM_PROJECT_ROOT="${AGENT_TEAM_PROJECT_ROOT:-$(pwd)}"
-export AGENT_TEAM_VENV="${AGENT_TEAM_VENV:?set an external virtual environment}"
-export AGENT_TEAM_PYTHON="${AGENT_TEAM_PYTHON:-$AGENT_TEAM_VENV/bin/python}"
-export AGENT_TEAM_STATE_DIR="${AGENT_TEAM_STATE_DIR:?set external state storage}"
-export AGENT_TEAM_SERVICE_DIR="${AGENT_TEAM_SERVICE_DIR:?set the live service directory}"
+uv sync --frozen
 export LLM_BASE_URL="${LLM_BASE_URL:?set the OpenAI-compatible base URL}"
-export LLM_MODEL="${LLM_MODEL:-auto}"  # set an explicit ID only for a multi-model endpoint
+export LLM_MODEL=auto  # requires exactly one advertised model
+uv run --frozen agent-team init
+uv run --frozen agent-team serve
 ```
 
-Validate the source and deterministic suite:
+Use a separate terminal for `uv run --frozen agent-team doctor --json`. State
+defaults to `~/.agent-team`, with workspace below it; use `--state-dir` and
+`--workspace-dir` to select other external paths. A new state directory has no
+runtime lock, so enabled-knowledge inspection initially exits 2. During runtime
+ownership it also exits 2 because SQL inspection is deferred. After a clean stop,
+the existing free lock permits full inspection. Doctor never repairs state.
+
+Use an explicit advertised model ID when the catalog contains several models.
+Hermes, Pi, s6, Docker, root, and an external virtual environment are optional
+deployment concerns. The exact behavior is specified in the
+[configuration](docs/configuration-contract.md),
+[foreground serve](docs/foreground-serve-contract.md), and
+[doctor](docs/doctor-contract.md) contracts.
+
+Validate the installed deterministic suite with isolated runtime settings:
 
 ```sh
-export PYTHONPATH=src
 .venv/bin/python -m compileall -q src tests pi
-.venv/bin/python -m pytest tests/ -q -p no:cacheprovider
+.venv/bin/python scripts/run_isolated_tests.py
 .venv/bin/python pi/manifest_validator.py pi/manifest.json
 ```
 
-For clone verification, supervised startup, API examples, health/readiness,
+For clone verification, optional supervised startup, API examples, health/readiness,
 swarm reconciliation, and cancellation, follow [Operations](docs/operations.md).
 
 ## Security boundary

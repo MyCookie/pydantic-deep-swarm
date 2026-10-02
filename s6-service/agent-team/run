@@ -35,9 +35,9 @@ export PRINCIPAL_MODEL="${PRINCIPAL_MODEL:-$LLM_MODEL}"
 export MANAGER_MODEL="${MANAGER_MODEL:-$LLM_MODEL}"
 export WORKER_MODEL="${WORKER_MODEL:-$LLM_MODEL}"
 export CURATOR_MODEL="${CURATOR_MODEL:-$LLM_MODEL}"
+export AGENT_TEAM_HOST="$host"
+export AGENT_TEAM_PORT="$port"
 
 cd "$project"
 exec "$setuidgid" "$service_user" \
-  "$python" -m uvicorn agent_team.app:app \
-  --host "$host" \
-  --port "$port"
+  "$python" -m agent_team.app

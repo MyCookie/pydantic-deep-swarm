@@ -59,7 +59,11 @@ class WorkerToolExecutor:
         acceptance_criteria: list[dict[str, Any]] | None = None,
         max_turns: int | None = None,
         turn_budget: WorkerTurnBudget | None = None,
+        write_guard=None,
     ):
+        self.write_guard = write_guard or getattr(artifact_store, "write_guard", None)
+        if self.write_guard is not None:
+            self.write_guard()
         self.workspace = Path(workspace).expanduser().resolve()
         self.workspace.mkdir(parents=True, exist_ok=True)
         self.artifact_store = artifact_store
@@ -146,6 +150,8 @@ class WorkerToolExecutor:
         return ToolResult("read_file", True, path.read_text(encoding="utf-8", errors="replace")[:max_chars])
 
     async def _write_file(self, arguments: dict[str, Any]) -> ToolResult:
+        if self.write_guard is not None:
+            self.write_guard()
         path = self._resolve(str(arguments.get("path") or ""))
         content = str(arguments.get("content") or "")
         encoded = content.encode("utf-8")
@@ -158,6 +164,8 @@ class WorkerToolExecutor:
                 handle.write(encoded)
                 handle.flush()
                 os.fsync(handle.fileno())
+            if self.write_guard is not None:
+                self.write_guard()
             os.replace(temporary, path)
         finally:
             if os.path.exists(temporary):

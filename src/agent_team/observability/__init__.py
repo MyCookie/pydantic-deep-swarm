@@ -23,12 +23,14 @@ class StructuredLogger:
         backup_count: int = 5,
     ):
         self.name = name
-        self.log_dir = log_dir or Path.home() / ".agent-team" / "logs"
-        self.log_dir.mkdir(parents=True, exist_ok=True)
+        self.log_dir = log_dir
+        self.file_handler = None
 
         # Setup file handler
-        log_file = self.log_dir / f"{name}.jsonl"
-        if max_bytes is not None:
+        if log_dir is not None:
+            log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / f"{name}.jsonl" if log_dir is not None else None
+        if log_file is not None and max_bytes is not None:
             if max_bytes < 1 or backup_count < 1:
                 raise ValueError("log retention bounds must be positive")
             self.file_handler = RotatingFileHandler(
@@ -36,9 +38,10 @@ class StructuredLogger:
                 maxBytes=max_bytes,
                 backupCount=backup_count,
             )
-        else:
+        elif log_file is not None:
             self.file_handler = logging.FileHandler(log_file)
-        self.file_handler.setFormatter(logging.Formatter('%(message)s'))
+        if self.file_handler is not None:
+            self.file_handler.setFormatter(logging.Formatter('%(message)s'))
 
         # Setup console handler
         self.console_handler = logging.StreamHandler()
@@ -48,12 +51,15 @@ class StructuredLogger:
         self.logger.setLevel(logging.DEBUG)
         self.logger.propagate = False
         install_redacting_filter(self.logger)
-        self.logger.addHandler(self.file_handler)
+        if self.file_handler is not None:
+            self.logger.addHandler(self.file_handler)
         self.logger.addHandler(self.console_handler)
 
     def close(self) -> None:
         """Detach and close only handlers owned by this structured logger."""
         for handler in (self.file_handler, self.console_handler):
+            if handler is None:
+                continue
             self.logger.removeHandler(handler)
             handler.close()
 
@@ -65,8 +71,10 @@ class StructuredLogger:
         log_dir: Path | None = None,
     ) -> None:
         """Move logs to configured state storage and apply optional rotation."""
+        if log_dir is None and self.log_dir is None:
+            return
         target_dir = (log_dir or self.log_dir).expanduser().resolve()
-        if target_dir == self.log_dir.resolve() and max_bytes is None:
+        if self.log_dir is not None and target_dir == self.log_dir.resolve() and max_bytes is None:
             return
         if max_bytes is not None and (max_bytes < 1 or backup_count < 1):
             raise ValueError("log retention bounds must be positive")
@@ -82,8 +90,9 @@ class StructuredLogger:
             else logging.FileHandler(log_file)
         )
         replacement.setFormatter(logging.Formatter('%(message)s'))
-        self.logger.removeHandler(self.file_handler)
-        self.file_handler.close()
+        if self.file_handler is not None:
+            self.logger.removeHandler(self.file_handler)
+            self.file_handler.close()
         self.log_dir = target_dir
         self.file_handler = replacement
         self.logger.addHandler(self.file_handler)

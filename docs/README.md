@@ -20,17 +20,25 @@ architecture, runtime behavior, operations, and testing guidance live here.
 - [GitOps runbook](gitops-runbook.md) — exact-revision promotion, Pi asset
   reconciliation, rollback, and operational recovery.
 
-## Planned contracts
+## Accepted runtime contracts
 
-- [Foreground serve](foreground-serve-contract.md) — issue #4 startup, readiness,
-  ownership, and shutdown decisions; not implemented runtime behavior.
+- [Configuration authority](configuration-contract.md) — exact file selection,
+  per-field paths, environment escape rejection, and repeat initialization.
+- [Knowledge migration](knowledge-database-migration.md) — canonical leased
+  preparation, historical preservation, recovery, and nonmutating inspection.
+- [Foreground serve](foreground-serve-contract.md) — startup, readiness,
+  ownership, shutdown, and child-write boundaries.
+- [Doctor](doctor-contract.md) — scoped diagnostics, nonmutation, reports,
+  optional adapters, and verified/blocked/unverified exits.
 
-- [Owned model selection](model-selection-contract.md) — issue #5 decisions and
-  future acceptance gates; not implemented runtime behavior.
+- [Owned model selection](model-selection-contract.md) — model inheritance,
+  discovery, owned YAML persistence, and separately verified activation.
 
 - [Standalone acceptance gate](standalone-acceptance-gate.md) — issue #8 frozen
   clone installation, isolated fake-HTTP/process/migration proof, and required
-  evidence before cutover; a future build gate, not an executed acceptance report.
+  evidence before cutover. Run the exact-revision controller described in
+  [testing](testing.md) to obtain a current acceptance report.
+- [Domain glossary](../CONTEXT.md) and [configuration ADR](adr/0001-runtime-configuration-authority.md).
 
 ## Colocated specifications
 
@@ -48,8 +56,8 @@ or status documents.
 
 ## Source-of-truth order
 
-Planned contracts describe future behavior. For current implemented behavior,
-when prose and behavior disagree, use this order:
+Contracts define the agreed behavior and acceptance obligations. To establish
+current implemented behavior when prose and code disagree, use this order:
 
 1. Typed contracts and runtime code under `src/agent_team/`.
 2. Executable acceptance tests under `tests/`.

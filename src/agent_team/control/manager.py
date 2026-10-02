@@ -52,237 +52,200 @@ class SwarmReconcileResult(BaseModel):
     pending_restart: bool = False
     status: SwarmStatus
 
+    outcome: str = "synchronized"
+    restart_required: bool | None = None
+    commit_state: str = "not_committed"
+    exit_code: int = 0
+    errors: list[str] = Field(default_factory=list)
+    role_changes: dict[str, str] = Field(default_factory=dict)
 
-class SwarmManager:
-    """Single entry point for detect → reconcile → restart → verify."""
 
-    def __init__(
-        self,
-        discovery: OpenAIModelDiscovery,
-        api: AgentTeamAPIClient,
-        config: SwarmConfigReconciler | None = None,
-        service: Restartable | None = None,
-        *,
-        effective_models: dict[str, str] | None = None,
-        effective_models_provider: Callable[[], dict[str, str]] | None = None,
-        verification_attempts: int = 20,
-        verification_interval: float = 0.25,
-        sleep: Callable[[float], None] = time.sleep,
-    ) -> None:
-        if verification_attempts < 1:
-            raise ValueError("verification_attempts must be at least 1")
-        if verification_interval < 0:
-            raise ValueError("verification_interval cannot be negative")
-        self.discovery = discovery
+class OwnedSwarmStatus(BaseModel):
+    expected_model: str | None = None
+    config_file: str | None = None
+    config_source: str | None = None
+    configured_models: dict[str, dict] = Field(default_factory=dict)
+    effective_models: dict[str, dict] = Field(default_factory=dict)
+    catalogs: dict[str, list[str]] = Field(default_factory=dict)
+    observed_models: dict[str, dict] = Field(default_factory=dict)
+    advertised_models: list[str] = Field(default_factory=list)
+    config_model: str | None = None
+    source_model: str | None = None
+    live_model: str | None = None
+    health_ok: bool = False
+    ready_ok: bool = False
+    api_available: bool = False
+    model_drift: bool = False
+    drift: list[str] = Field(default_factory=list)
+    supervisor_state: str = "not_configured"
+
+    @property
+    def synchronized(self):
+        return not self.drift and self.api_available and self.health_ok and self.ready_ok
+
+
+class OwnedSwarmResult(BaseModel):
+    model: str | None = None
+    changed_files: list[str] = Field(default_factory=list)
+    restarted: bool = False
+    verified: bool = False
+    pending_restart: bool = False
+    restart_required: bool | None = None
+    outcome: str
+    commit_state: str = "not_committed"
+    exit_code: int = 0
+    errors: list[str] = Field(default_factory=list)
+    role_changes: dict[str, str] = Field(default_factory=dict)
+    status: OwnedSwarmStatus
+
+
+class OwnedSwarmManager:
+    """Configuration authority and activation are separate, explicit phases."""
+
+    def __init__(self, selection, api, service=None, *, verification_attempts=20,
+                 verification_interval=.25, sleep=time.sleep, discovery_factory=OpenAIModelDiscovery,
+                 state_dir=None, workspace_dir=None):
+        self.selection = selection
         self.api = api
-        self.config = config
         self.service = service
-        self.effective_models = effective_models
-        self.effective_models_provider = effective_models_provider
+        self.discovery_factory = discovery_factory
         self.verification_attempts = verification_attempts
         self.verification_interval = verification_interval
         self.sleep = sleep
+        self.state_dir = state_dir
+        self.workspace_dir = workspace_dir
+        self.effective_models = {r: m.model for r, m in selection.config.models.items()}
+        self.config = None  # legacy source/runfile mutations are never used
 
-    @staticmethod
-    def _read_model(path: Path, extractor) -> str | None:
+    def _resolve(self, override=None):
+        from ..config import ROLES
+        from .discovery import ModelDiscoveryError
+        config = self.selection.config.model_copy(deep=True)
+        endpoints = {m.base_url.rstrip("/") if m.base_url else None for m in config.models.values()}
+        if override is not None and (override == "auto" or len(endpoints) != 1):
+            raise ValueError("explicit override requires a non-auto ID and one shared endpoint")
+        catalogs = {}
+        for role in ROLES:
+            item = config.models[role]
+            if not item.base_url:
+                raise ValueError(f"{role} requires an endpoint")
+            endpoint = item.base_url.rstrip("/")
+            if endpoint not in catalogs:
+                probe = self.discovery_factory(endpoint)
+                try:
+                    catalogs[endpoint] = probe.list_models()
+                finally:
+                    close = getattr(probe, "close", None)
+                    if close:
+                        close()
+            selection = override if override is not None else item.model
+            value = OpenAIModelDiscovery.require_single(catalogs[endpoint]) if selection == "auto" else selection
+            if value not in catalogs[endpoint]:
+                raise ModelDiscoveryError(f"{role} explicit selection is not advertised", "model_not_found")
+            item.model = value
+        return config, catalogs
+
+    def _observe(self, config, catalogs, *, observe=True):
+        from .discovery import safe_endpoint
+        desired = {r: {"model": m.model, "base_url": safe_endpoint(m.base_url)} for r, m in config.models.items()}
+        status = OwnedSwarmStatus(config_file=str(self.selection.config_file), config_source=self.selection.config_source,
+                                 configured_models={r: {"model": m.model, "base_url": safe_endpoint(m.base_url or "")} for r,m in self.selection.config.models.items()},
+                                 effective_models=desired, catalogs={safe_endpoint(k):v for k,v in catalogs.items()},
+                                 expected_model=config.models["principal"].model,
+                                 advertised_models=list(dict.fromkeys(x for v in catalogs.values() for x in v)),
+                                 supervisor_state="available" if self.service else "not_configured")
+        if not observe:
+            return status
         try:
-            return extractor(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError):
-            return None
-
-    def inspect(self, *, expected_model: str | None = None) -> SwarmStatus:
-        advertised = self.discovery.list_models()
-        drift: list[str] = []
-        effective_models = (
-            self.effective_models_provider()
-            if self.effective_models_provider is not None
-            else self.effective_models
-        )
-
-        config_model = self._read_model(
-            self.config.source_config_path,
-            extract_config_model,
-        ) if self.config else None
-        source_model = self._read_model(
-            self.config.source_runfile_path,
-            extract_runfile_model,
-        ) if self.config else None
-        live_model = self._read_model(
-            self.config.live_runfile_path,
-            extract_runfile_model,
-        ) if self.config else None
-
-        supervisor_state, supervisor_detail = self.supervisor_status()
-        if supervisor_state == "unavailable":
-            drift.append(f"s6 supervisor unavailable: {supervisor_detail}")
-
-        raw_models: dict[str, Any] = {}
-        api_models: dict[str, str | None] = {}
-        try:
-            raw_models = self.api.models()
-            api_models = {
-                role: (
-                    raw_models.get(role, {}).get("model")
-                    if isinstance(raw_models.get(role), dict)
-                    else None
-                )
-                for role in ROLES
-            }
-        except Exception as exc:
-            drift.append(f"Agent Team /models unavailable: {exc}")
-
-        live_selection = live_model if live_model not in {None, "auto"} else None
-        principal_selection = api_models.get("principal")
-        expected = (
-            expected_model
-            or live_selection
-            or principal_selection
-            or self.discovery.require_single(advertised)
-        )
-        resolved_models: dict[str, str] = {}
-        if self.config is None or effective_models is not None:
-            for role in ROLES:
-                selection = (effective_models or {}).get(role)
-                if selection is None:
-                    drift.append(f"effective role {role} has no configured model")
-                    continue
-                desired = self.discovery.require_single(advertised) if selection in {"auto", ""} else selection
-                resolved_models[role] = desired
-                if desired not in advertised:
-                    drift.append(f"effective role {role} has {desired!r}, which the endpoint does not advertise")
-                if expected_model is not None and desired != expected_model:
-                    drift.append(f"effective role {role} has {desired!r}; expected {expected_model!r}")
-        if expected_model is not None or live_selection is not None or len(advertised) == 1:
-            if expected not in advertised:
-                drift.append(
-                    f"model endpoint advertises {advertised!r}; expected {expected!r}"
-                )
-
-        for label, value in (
-            ("Python config", config_model),
-            ("source runfile", source_model),
-            ("live runfile", live_model),
-        ):
-            if self.config and value not in {expected, "auto"}:
-                drift.append(f"{label} has {value!r}; expected {expected!r} or 'auto'")
-
-        discovery_base_url = getattr(self.discovery, "base_url", "").rstrip("/")
-        for role, value in api_models.items():
-            detail = raw_models.get(role, {})
-            role_base_url = (
-                str(detail.get("base_url") or "").rstrip("/")
-                if isinstance(detail, dict)
-                else ""
-            )
-            if not value:
-                drift.append(f"API role {role} has no configured model")
-            elif role in resolved_models and value != resolved_models[role]:
-                drift.append(f"API role {role} has {value!r}; expected {resolved_models[role]!r}")
-            elif expected_model is not None and value != expected_model:
-                drift.append(f"API role {role} has {value!r}; expected {expected_model!r}")
-            elif role_base_url == discovery_base_url and value not in advertised:
-                drift.append(
-                    f"API role {role} has {value!r}, which the endpoint does not advertise"
-                )
-
-        health_ok = False
-        try:
-            health = self.api.health()
-            health_ok = health.get("status") == "ok"
-        except Exception as exc:
-            drift.append(f"Agent Team /health unavailable: {exc}")
-        if not health_ok:
-            drift.append("Agent Team liveness is not healthy")
-
-        ready_ok = False
-        try:
-            ready = self.api.ready()
-            ready_ok = ready.get("status") == "ok" and ready.get("ready") is True
-        except Exception as exc:
-            drift.append(f"Agent Team /ready unavailable: {exc}")
-        if not ready_ok:
-            drift.append("Agent Team readiness is not ready")
-
-        return SwarmStatus(
-            expected_model=expected,
-            advertised_models=advertised,
-            config_model=config_model,
-            source_model=source_model,
-            live_model=live_model,
-            api_models=api_models,
-            health_ok=health_ok,
-            ready_ok=ready_ok,
-            drift=drift,
-            effective_models=resolved_models,
-            supervisor_state=supervisor_state,
-            supervisor_detail=supervisor_detail,
-        )
-
-    def supervisor_status(self) -> tuple[str, str | None]:
-        if self.service is None:
-            return "not_configured", None
-        preflight = getattr(self.service, "preflight", None)
-        try:
-            if preflight:
-                preflight()
-        except ServiceControlError as exc:
-            return "unavailable", str(exc)
-        return "available", None
-
-    def _wait_for_convergence(self, expected_model: str) -> SwarmStatus:
-        """Poll until the restarted API reflects the reconciled model."""
-        status = self.inspect(expected_model=expected_model)
-        for attempt in range(self.verification_attempts):
-            if status.synchronized:
-                return status
-            if attempt + 1 >= self.verification_attempts:
-                break
-            self.sleep(self.verification_interval)
-            status = self.inspect(expected_model=expected_model)
+            models = self.api.models()
+            status.api_available = True
+            for role, model in config.models.items():
+                actual = models.get(role)
+                if not isinstance(actual, dict) or actual.get("model") != model.model or str(actual.get("base_url") or "").rstrip("/") != model.base_url.rstrip("/"):
+                    status.model_drift = True
+                    status.drift.append(f"API role {role} differs from desired configuration")
+                if isinstance(actual, dict):
+                    status.observed_models[role] = {"model": actual.get("model"), "base_url": safe_endpoint(str(actual.get("base_url") or ""))}
+        except Exception:
+            status.drift.append("Agent Team models observation unavailable")
+        for name in ("health", "ready"):
+            try:
+                body = getattr(self.api,name)()
+                ok = body.get("status") == "ok" and (name != "ready" or body.get("ready") is True)
+            except Exception:
+                ok = False
+            setattr(status, name+"_ok", ok)
+            if not ok:
+                status.drift.append(f"Agent Team {name} observation failed")
         return status
 
-    def reconcile(
-        self,
-        model: str | None = None,
-        *,
-        restart: bool = True,
-        verify: bool = True,
-        dry_run: bool = False,
-    ) -> SwarmReconcileResult:
-        if self.config is None or self.service is None:
-            raise ServiceControlError("reconcile requires the optional s6 adapter and managed configuration")
-        advertised = self.discovery.list_models()
-        target = model or self.discovery.require_single(advertised)
-        if target not in advertised:
-            raise ValueError(
-                f"requested model {target!r} is not advertised by the endpoint: {advertised!r}"
-            )
+    def inspect(self):
+        try:
+            config, catalogs = self._resolve()
+            return self._observe(config, catalogs)
+        except Exception as exc:
+            from .discovery import safe_endpoint
+            return OwnedSwarmStatus(config_file=str(self.selection.config_file), config_source=self.selection.config_source,
+                                    configured_models={r:{"model":m.model,"base_url":safe_endpoint(m.base_url or "")} for r,m in self.selection.config.models.items()},
+                                    effective_models={r:{"model":None,"base_url":safe_endpoint(m.base_url or "")} for r,m in self.selection.config.models.items()},
+                                    drift=[getattr(exc,"reason","configuration_or_discovery_error")])
 
-        before = self.inspect(expected_model=target)
-        if not dry_run and restart:
-            preflight = getattr(self.service, "preflight", None)
-            if preflight:
-                preflight()
-        live_selection = target if model is not None else "auto"
-        changed_files = self.config.apply(live_selection, dry_run=dry_run)
-        restarted = False
-        if not dry_run and restart and (changed_files or not before.synchronized):
-            self.service.restart()
-            restarted = True
+    def reconcile(self, model=None, *, restart=True, verify=True, dry_run=False):
+        from .configuration import OwnedYamlReconciler
+        config, catalogs = self._resolve(model)
+        desired = {r:m.model for r,m in config.models.items()}
+        changes = {r:value for r,value in desired.items() if self.selection.config.models[r].model != value}
+        writer = OwnedYamlReconciler(self.selection, state_dir=self.state_dir, workspace_dir=self.workspace_dir)
+        status = self._observe(config,catalogs,observe=verify and not dry_run)
+        result = OwnedSwarmResult(model=config.models["principal"].model,outcome="planned",status=status,role_changes=changes)
+        try:
+            result.changed_files = writer.apply(desired,dry_run=dry_run)
+        except Exception as exc:
+            result.outcome="persistence_failed"
+            result.exit_code=1
+            result.commit_state=getattr(exc,"commit_state","not_committed")
+            result.errors=["configuration persistence failed"]
+            return result
+        if dry_run:
+            result.restart_required=bool(result.changed_files) or None
+            return result
+        changed=bool(result.changed_files)
+        result.commit_state="committed" if changed else "unchanged"
+        result.restart_required=True if changed or status.model_drift else False if status.api_available else None
+        if restart and self.service and result.restart_required is True:
+            try:
+                self.service.restart()
+                result.restarted=True
+            except Exception:
+                result.outcome="restart_failed"; result.exit_code=1; result.errors=["restart failed"]
+                return result
+        if not verify:
+            result.outcome="verification_skipped"
+            result.restart_required=True if changed else None
+            result.pending_restart=result.restart_required is True
+            return result
+        attempts=self.verification_attempts if result.restarted else 1
+        for index in range(attempts):
+            status=self._observe(config,catalogs)
+            if status.synchronized:
+                break
+            if index+1<attempts:
+                self.sleep(self.verification_interval)
+        result.status=status
+        if not status.api_available:
+            result.outcome="verification_unavailable"; result.exit_code=1
+            result.restart_required=True if changed else None
+        elif not status.health_ok or not status.ready_ok or (result.restarted and status.model_drift):
+            result.outcome="verification_failed"; result.exit_code=1
+            result.restart_required=True if changed or status.model_drift else False
+        elif status.model_drift:
+            result.outcome="restart_required"; result.restart_required=True
+        else:
+            result.outcome="synchronized"; result.restart_required=False; result.verified=True
+        result.pending_restart=result.restart_required is True
+        return result
 
-        status = (
-            self._wait_for_convergence(target)
-            if verify and not dry_run and restarted
-            else self.inspect(expected_model=target)
-            if verify and not dry_run
-            else before
-        )
-        pending_restart = bool(not dry_run and not restart and (changed_files or not before.synchronized))
-        return SwarmReconcileResult(
-            model=target,
-            changed_files=changed_files,
-            restarted=restarted,
-            verified=status.synchronized if verify and not dry_run and not pending_restart else False,
-            pending_restart=pending_restart,
-            status=status,
-        )
+
+
+# Public control API now uses the owned YAML authority contract.
+SwarmManager = OwnedSwarmManager

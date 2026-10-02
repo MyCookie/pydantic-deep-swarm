@@ -115,6 +115,13 @@ the adapter explicitly. Without that setting, a nonempty
 `not_configured`. Finding s6 executables never selects the adapter. Explicit
 `none` overrides inherited service settings.
 
+Foreground serve freezes effective configuration before startup. Its lifespan
+acquires the sole lease before endpoint validation, canonical knowledge
+preparation, recovery, retention, and engine construction. App, engine, and
+retention share the prepared knowledge store. The owner drains and closes these
+resources before releasing ownership; HTTP requests never initialize a missing
+or stopping runtime. Originating-generation guards protect managed commits.
+
 Missing optional supervision is not drift. Selected but unavailable supervision
 is a visible failure. Core status compares effective role models and the API;
 only the s6 compatibility profile also compares source defaults and runfiles.
@@ -167,7 +174,7 @@ AGENT_TEAM_STATE_DIR/
 ├── sessions/
 ├── checkpoints/
 ├── memory/
-├── knowledge/
+├── knowledge/knowledge.db
 ├── projects/
 ├── artifacts/
 └── logs/
@@ -180,6 +187,13 @@ retention controls bound session messages and can expire terminal sessions,
 project/checkpoint families, artifact manifests, memory scopes, and knowledge;
 workspace deliverables are never removed by the retention sweep. Log rotation
 is separately bounded by byte and backup-count settings.
+
+Knowledge migration preserves full historical records through verified snapshots
+and a versioned roll-forward journal under `knowledge/`. Archives are excluded
+from ordinary retention. Doctor guards an existing lock without acquiring runtime
+ownership and validates complete private database copies outside state; it never
+opens source databases or creates their sidecars. See the
+[knowledge contract](knowledge-database-migration.md).
 
 ## Trust and evidence invariants
 

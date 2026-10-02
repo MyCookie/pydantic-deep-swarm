@@ -30,7 +30,7 @@ def test_auto_model_discovers_the_single_advertised_model(monkeypatch):
 
     assert model.model_name == "vendor/example-model"
     assert config.model == "vendor/example-model"
-    assert calls == [("http://model-service:8000/v1", "endpoint-token")]
+    assert calls == [("http://model-service:8000/v1", "")]
 
 
 def test_auto_model_discovery_is_reused_for_roles_on_the_same_endpoint(monkeypatch):

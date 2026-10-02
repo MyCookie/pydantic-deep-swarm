@@ -8,9 +8,10 @@ from pathlib import Path
 
 import click
 import yaml
+from .redaction import redact_sensitive_data, redact_sensitive_text
 
 from .bootstrap import BootstrapError, Bootstrapper, write_bootstrap_report
-from .config import get_config
+from .config import get_config, resolve_configuration
 from .control import (
     AgentTeamAPIClient,
     S6ServiceController,
@@ -36,81 +37,64 @@ def _project_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def build_model_discovery() -> OpenAIModelDiscovery:
-    """Build discovery independently of supervisor configuration."""
-    effective = get_config()
-    fallback = os.getenv("LLM_BASE_URL", "http://model-service:8000/v1")
-    endpoints = {model.base_url or fallback for model in effective.models.values()} or {fallback}
-    if len(endpoints) != 1:
-        raise ValueError("swarm control requires a single model endpoint shared by all roles")
-    return OpenAIModelDiscovery(
-        endpoints.pop(),
-        api_key=os.getenv("LLM_API_KEY", ""),
-    )
+def build_model_discovery(**selectors) -> OpenAIModelDiscovery:
+    selection = resolve_configuration(**selectors)
+    path = selection.config_file
+    data = yaml.safe_load(path.read_text()) if selection.config_source == "yaml" else {}
+    default = (data or {}).get("models", {}).get("default") or {}
+    endpoint = default.get("base_url") if selection.config_source == "yaml" else os.getenv("LLM_BASE_URL")
+    if endpoint is not None:
+        from .config import Config
+        endpoint = Config._expand_env_vars(endpoint)
+    if selection.config_source == "yaml":
+        endpoint = endpoint or selection.config.models["principal"].base_url
+    if not endpoint:
+        raise ValueError("common discovery endpoint is required")
+    return OpenAIModelDiscovery(endpoint)
 
 
-def build_swarm_manager(*, supervisor: str | None = None) -> SwarmManager:
-    """Build core control or the optional s6 deployment adapter."""
-    configured_service_dir = os.getenv("AGENT_TEAM_SERVICE_DIR")
-    selected = supervisor or os.getenv("AGENT_TEAM_SUPERVISOR") or (
-        "s6" if configured_service_dir else "none"
-    )
+def build_swarm_manager(*, supervisor: str | None = None, **selectors):
+    from .control.manager import OwnedSwarmManager
+    selection = resolve_configuration(**selectors)
+    selected = supervisor or os.getenv("AGENT_TEAM_SUPERVISOR", "none")
     if selected not in {"none", "s6"}:
-        raise ValueError("AGENT_TEAM_SUPERVISOR must be none or s6")
-    root = Path(os.getenv("AGENT_TEAM_PROJECT_ROOT", str(_project_root())))
-    api_url = (
-        os.getenv("AGENT_TEAM_API_URL")
-        or os.getenv("AGENT_TEAM_URL")
-        or "http://localhost:8080"
-    )
-    discovery = build_model_discovery()
-    effective = get_config()
-    effective_models = {
-        role: model.model or os.getenv("LLM_MODEL", "auto")
-        for role, model in effective.models.items()
-    }
-    api = AgentTeamAPIClient(api_url, api_token=os.getenv("AGENT_TEAM_API_TOKEN", ""))
-    if selected == "none":
-        return SwarmManager(
-            discovery,
-            api,
-            effective_models=effective_models,
-        )
-    source_config = Path(
-        os.getenv("AGENT_TEAM_CONFIG_SOURCE", str(root / "src/agent_team/config.py"))
-    )
-    source_runfile = Path(
-        os.getenv(
-            "AGENT_TEAM_SOURCE_RUNFILE",
-            str(root / "s6-service/agent-team/run"),
-        )
-    )
-    if not configured_service_dir:
-        raise ValueError("set AGENT_TEAM_SERVICE_DIR for the live s6 service")
-    service_dir = Path(configured_service_dir)
-    live_runfile = Path(
-        os.getenv("AGENT_TEAM_LIVE_RUNFILE", str(service_dir / "run"))
-    )
+        raise ValueError("supervisor must be none or s6")
+    service = None
+    if selected == "s6":
+        directory = os.getenv("AGENT_TEAM_SERVICE_DIR")
+        if not directory:
+            raise ValueError("AGENT_TEAM_SERVICE_DIR is required for the s6 adapter")
+        service = S6ServiceController(service_dir=Path(directory))
+    api_url = os.getenv("AGENT_TEAM_API_URL") or os.getenv("AGENT_TEAM_URL") or "http://localhost:8080"
+    return OwnedSwarmManager(selection, AgentTeamAPIClient(api_url,api_token=os.getenv("AGENT_TEAM_API_TOKEN", "")), service,
+                             discovery_factory=OpenAIModelDiscovery,
+                             state_dir=selectors.get("state_dir"),workspace_dir=selectors.get("workspace_dir"))
 
-    def current_effective_models() -> dict[str, str]:
-        try:
-            fallback_model = extract_runfile_model(live_runfile.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError):
-            fallback_model = None
-        current = get_config(fallback_model=fallback_model)
-        return {
-            role: model.model or os.getenv("LLM_MODEL", fallback_model or "auto")
-            for role, model in current.models.items()
-        }
 
-    return SwarmManager(
-        discovery,
-        api,
-        SwarmConfigReconciler(source_config, source_runfile, live_runfile),
-        S6ServiceController(service_dir=service_dir),
-        effective_models=current_effective_models(),
-        effective_models_provider=current_effective_models,
-    )
+def config_options(function):
+    function = click.option("--workspace-dir",type=click.Path(path_type=Path))(function)
+    function = click.option("--state-dir",type=click.Path(path_type=Path))(function)
+    return click.option("--config","config_file",type=click.Path(path_type=Path))(function)
+
+
+def _port_argument(value):
+    try:
+        return int(value)
+    except (TypeError,ValueError):
+        return value
+
+
+def _deadline_argument(value):
+    try:
+        return float(value)
+    except (TypeError,ValueError):
+        return value
+
+
+_PORT_TYPE=click.types.FuncParamType(_port_argument)
+_PORT_TYPE.name="integer"
+_DEADLINE_TYPE=click.types.FuncParamType(_deadline_argument)
+_DEADLINE_TYPE.name="seconds"
 
 
 @click.group()
@@ -121,129 +105,123 @@ def cli():
 
 
 @cli.command("serve")
-@click.option("--host", envvar="AGENT_TEAM_HOST", default="localhost", show_default=True)
-@click.option("--port", envvar="AGENT_TEAM_PORT", default=8080, type=click.IntRange(1, 65535))
-@click.option("--config", "config_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
-def serve(host: str, port: int, config_file: Path | None):
-    """Run the HTTP runtime in the foreground."""
-    import uvicorn
-
-    previous_config = os.environ.get("AGENT_TEAM_CONFIG_FILE")
-    try:
-        if config_file is not None:
-            os.environ["AGENT_TEAM_CONFIG_FILE"] = str(config_file.resolve())
-        uvicorn.run("agent_team.app:app", host=host, port=port)
-    finally:
-        if config_file is not None:
-            if previous_config is None:
-                os.environ.pop("AGENT_TEAM_CONFIG_FILE", None)
-            else:
-                os.environ["AGENT_TEAM_CONFIG_FILE"] = previous_config
+@config_options
+@click.option("--host", envvar="AGENT_TEAM_HOST",default="localhost")
+@click.option("--port",envvar="AGENT_TEAM_PORT",default=8080,type=_PORT_TYPE)
+@click.option("--startup-timeout",envvar="AGENT_TEAM_STARTUP_TIMEOUT",default=60.,type=_DEADLINE_TYPE)
+@click.option("--shutdown-timeout",envvar="AGENT_TEAM_SHUTDOWN_TIMEOUT",default=30.,type=_DEADLINE_TYPE)
+def serve(**options):
+    """Run the sole leased foreground runtime."""
+    from .foreground import run_serve
+    raise click.exceptions.Exit(run_serve(**options))
 
 
 @cli.command("doctor")
-@click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON.")
-def doctor(as_json: bool):
-    """Inspect core runtime configuration and readiness without mutation."""
-    try:
-        status = build_swarm_manager(supervisor="none").inspect()
-    except Exception as exc:
-        raise click.ClickException(str(exc)) from exc
+@config_options
+@click.option("--repo-root",type=click.Path(path_type=Path))
+@click.option("--expected-revision")
+@click.option("--json","as_json",is_flag=True)
+@click.option("--report",type=click.Path(path_type=Path))
+@click.option("--timeout",default=30.,type=float)
+@click.option("--ready-url")
+@click.option("--with-pi",is_flag=True)
+@click.option("--supervisor",type=click.Choice(["none","s6"]),default="none")
+@click.option("--pi-binary",type=click.Path(path_type=Path))
+@click.option("--service-dir",type=click.Path(path_type=Path))
+@click.option("--s6-svstat",type=click.Path(path_type=Path))
+def doctor(as_json,report,**options):
+    """Inspect standalone configuration without changing managed state."""
+    import math
+    from .doctor import diagnose, write_report, aggregate
+    if options["pi_binary"] and not options["with_pi"]:
+        raise click.UsageError("--pi-binary requires --with-pi")
+    if (options["service_dir"] or options["s6_svstat"]) and options["supervisor"]!="s6":
+        raise click.UsageError("s6 inputs require --supervisor=s6")
+    if options["timeout"]<=0 or not math.isfinite(options["timeout"]):
+        raise click.UsageError("--timeout must be positive and finite")
+    result=diagnose(**options)
+    if report:
+        try:
+            write_report(result,report,inspected_inputs=(options.get("pi_binary"),options.get("s6_svstat"),options.get("service_dir")))
+        except Exception as exc:
+            result["checks"].append(dict(id="report",scope="core",required=True,status="failed",
+                reason="report_write_failed",detail="Report could not be durably written",remediation="Use a safe existing external parent",
+                observed_at=result["generated_at"],evidence={"commit_state":getattr(exc,"commit_state","not_committed")}))
+            aggregate(result)
+            click.echo("report_write_failed",err=True)
     if as_json:
-        click.echo(status.model_dump_json(indent=2))
+        click.echo(json.dumps(redact_sensitive_data(result)))
     else:
-        click.echo(f"expected model: {status.expected_model}")
-        click.echo(f"health ready: {status.health_ok}")
-        click.echo(f"API ready: {status.ready_ok}")
-        for item in status.drift:
-            click.echo(f"  - {item}")
-    if not status.synchronized:
-        raise click.exceptions.Exit(1)
+        safe=redact_sensitive_data(result)
+        click.echo(f'{safe["outcome"]} (exit {safe["exit_code"]})')
+        for name in ("config_file","config_source","state_dir","workspace_dir"):
+            click.echo(f'{name}: {safe[name]}')
+        click.echo("selected scopes: " + json.dumps(safe["selected_scopes"],sort_keys=True))
+        observation=safe["runtime_observation"]
+        click.echo(f'lease: {observation["lease_status"]}; owner PID: {observation["owner_pid"]}; started: {observation["owner_started_at"]}')
+        click.echo(f'readiness URL: {observation["readiness_url"]}; endpoint_ready: {observation["endpoint_ready"]}; reason: {observation["readiness_reason"]}')
+        click.echo(f'selected runtime correlation: {observation["selected_runtime_correlation"]}')
+        for check in safe["checks"]:
+            click.echo(f'{check["id"]}: {check["status"]} ({check["reason"]})')
+            if check["detail"]:
+                click.echo(f'  detail: {check["detail"]}')
+            if check["remediation"]:
+                click.echo(f'  remediation: {check["remediation"]}')
+    raise click.exceptions.Exit(result["exit_code"])
 
 
 @cli.group()
 def swarm():
-    """Detect, reconcile, and verify the running agent swarm."""
-    pass
+    """Discover models, persist owned configuration, and verify activation."""
 
 
 @swarm.command("detect")
-def swarm_detect():
-    """Print the single model advertised by the configured endpoint."""
+@config_options
+def swarm_detect(**selectors):
     try:
-        click.echo(build_model_discovery().detect_model())
+        discovery=build_model_discovery(**selectors)
+        try:
+            click.echo(redact_sensitive_text(discovery.detect_model()))
+        finally:
+            close=getattr(discovery,"close",None)
+            if close:
+                close()
     except Exception as exc:
-        raise click.ClickException(str(exc)) from exc
+        raise click.ClickException(getattr(exc,"reason","configuration_or_discovery_error")) from exc
 
 
 @swarm.command("status")
-@click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON.")
-def swarm_status(as_json: bool):
-    """Inspect model drift across the endpoint, deployment, and API."""
+@config_options
+@click.option("--json","as_json",is_flag=True)
+def swarm_status(as_json,**selectors):
     try:
-        status = build_swarm_manager().inspect()
-    except Exception as exc:
-        raise click.ClickException(str(exc)) from exc
-
-    if as_json:
-        click.echo(status.model_dump_json(indent=2))
-    else:
-        click.echo(f"expected model: {status.expected_model}")
-        click.echo(f"endpoint models: {', '.join(status.advertised_models) or '(none)'}")
-        click.echo(f"Python config: {status.config_model}")
-        click.echo(f"supervisor: {status.supervisor_state}")
-        click.echo(f"source runfile: {status.source_model}")
-        click.echo(f"live runfile: {status.live_model}")
-        click.echo(f"health ready: {status.health_ok}")
-        click.echo(f"API ready: {status.ready_ok}")
-        if status.drift:
-            click.echo("drift:")
-            for item in status.drift:
-                click.echo(f"  - {item}")
-        else:
-            click.echo("drift: none")
-    if not status.synchronized:
+        status=build_swarm_manager(**selectors).inspect()
+        data=status.model_dump()
+    except Exception:
+        data={"effective_models":{},"drift":["configuration_error"],"supervisor_state":"not_configured"}
+        status=None
+    data=redact_sensitive_data(data)
+    click.echo(json.dumps(data) if as_json else "\n".join(f"{key}: {value}" for key,value in data.items()))
+    if status is None or not status.synchronized:
         raise click.exceptions.Exit(1)
 
 
 @swarm.command("reconcile")
-@click.option("--model", default=None, help="Explicit model; defaults to endpoint auto-detection.")
-@click.option("--dry-run", is_flag=True, help="Plan changes without writing or restarting.")
-@click.option("--no-restart", is_flag=True, help="Do not restart the supervised service.")
-@click.option("--no-verify", is_flag=True, help="Skip post-restart verification.")
-@click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON.")
-def swarm_reconcile(
-    model: str | None,
-    dry_run: bool,
-    no_restart: bool,
-    no_verify: bool,
-    as_json: bool,
-):
-    """Auto-detect, reconcile, restart, and verify the swarm."""
+@config_options
+@click.option("--model")
+@click.option("--dry-run",is_flag=True)
+@click.option("--no-restart",is_flag=True)
+@click.option("--no-verify",is_flag=True)
+@click.option("--json","as_json",is_flag=True)
+def swarm_reconcile(model,dry_run,no_restart,no_verify,as_json,**selectors):
     try:
-        result = build_swarm_manager().reconcile(
-            model,
-            restart=not no_restart,
-            verify=not no_verify,
-            dry_run=dry_run,
-        )
+        result=build_swarm_manager(**selectors).reconcile(model,restart=not no_restart,verify=not no_verify,dry_run=dry_run)
     except Exception as exc:
-        raise click.ClickException(str(exc)) from exc
-
-    if as_json:
-        click.echo(result.model_dump_json(indent=2))
-    else:
-        click.echo(f"model: {result.model}")
-        click.echo(f"changed files: {len(result.changed_files)}")
-        click.echo(f"restarted: {result.restarted}")
-        click.echo(f"verified: {result.verified}")
-        click.echo(f"pending restart: {result.pending_restart}")
-        if result.status.drift:
-            click.echo("drift:")
-            for item in result.status.drift:
-                click.echo(f"  - {item}")
-    if not dry_run and not no_verify and not result.verified:
-        raise click.exceptions.Exit(1)
+        data={"outcome":"validation_failed","exit_code":1,"errors":[getattr(exc,"reason","configuration_or_selection_error")],"verified":False}
+        click.echo(json.dumps(data) if as_json else "validation_failed",err=not as_json)
+        raise click.exceptions.Exit(1) from exc
+    click.echo(json.dumps(redact_sensitive_data(result.model_dump())) if as_json else f"{result.outcome}: changed={len(result.changed_files)} verified={result.verified}")
+    raise click.exceptions.Exit(result.exit_code)
 
 
 @cli.group()
@@ -689,49 +667,47 @@ def cancel(session_id: str):
 
 
 @cli.command()
-def init():
-    """Initialize agent team directories and config."""
-    config = get_config()
+@config_options
+@click.option("--overwrite-config",is_flag=True)
+def init(config_file,state_dir,workspace_dir,overwrite_config):
+    """Create external directories and persist an exact canonical configuration."""
+    from .control.configuration import atomic_write, reject_symlinks
+    from .runtime_boundary import ensure_external_runtime_paths
+    from .config import Config
+    import uuid
+    try:
+        raw_path=config_file or os.getenv("AGENT_TEAM_CONFIG_FILE")
+        if raw_path:
+            reject_symlinks(Path(raw_path).expanduser().absolute())
+        selection=resolve_configuration(config_file,state_dir=state_dir,workspace_dir=workspace_dir,allow_missing_named=True)
+        path=selection.config_file
+        ensure_external_runtime_paths(path)
+        reject_symlinks(path)
+        old=path.read_bytes() if path.exists() else None
+        if old is not None and not overwrite_config:
+            persisted=Config._expand_env_vars(yaml.safe_load(old) or {}).get("runtime") or {}
+            for key,value in (("state_dir",state_dir),("workspace_dir",workspace_dir)):
+                if value is not None and (persisted.get(key) is None or Path(persisted[key]).expanduser().resolve()!=Path(value).expanduser().resolve()):
+                    raise ValueError("existing config does not persist explicit "+key+"; use --overwrite-config")
+        config=selection.config
+        for directory in (config.runtime.state_dir,config.runtime.workspace_dir,*(config.runtime.state_dir/name for name in
+                          ("config","sessions","checkpoints","memory","knowledge","skills","projects","artifacts","logs"))):
+            reject_symlinks(directory)
+            directory.mkdir(parents=True,exist_ok=True)
+        if old is None or overwrite_config:
+            path.parent.mkdir(parents=True,exist_ok=True)
+            if old is not None:
+                backup=path.with_name(path.name+".backup-"+uuid.uuid4().hex)
+                atomic_write(backup,old,expected=None,mode=path.stat().st_mode & 0o777)
+            content=("# Agent Team Configuration\n"+yaml.safe_dump(config.model_dump(mode="json"),sort_keys=False)).encode()
+            atomic_write(path,content,expected=old)
+        click.echo(f"config: {redact_sensitive_text(path)}")
+        click.echo(f"state: {redact_sensitive_text(config.runtime.state_dir)}")
+        click.echo(f"workspace: {redact_sensitive_text(config.runtime.workspace_dir)}")
+        click.echo("Initialization complete")
+    except Exception as exc:
+        raise click.ClickException(str(exc) if type(exc) is ValueError else "initialization failed; preserve existing configuration and check external paths") from exc
 
-    dirs = [
-        config.runtime.state_dir,
-        config.runtime.state_dir / "config",
-        config.runtime.state_dir / "sessions",
-        config.runtime.state_dir / "checkpoints",
-        config.runtime.state_dir / "memory",
-        config.runtime.state_dir / "knowledge",
-        config.runtime.state_dir / "skills",
-        config.runtime.state_dir / "projects",
-        config.runtime.state_dir / "artifacts",
-        config.runtime.state_dir / "logs",
-    ]
-
-    for directory in dirs:
-        directory.mkdir(parents=True, exist_ok=True)
-        click.echo(f"Created: {directory}")
-
-    config_file = config.runtime.state_dir / "config" / "config.yaml"
-    if not config_file.exists():
-        content = config.model_dump(mode="json")
-        for role, values in content["models"].items():
-            prefix = role.upper()
-            model = values["model"] or ""
-            endpoint = values["base_url"] or "http://model-service:8000/v1"
-            model_default = f"${{WORKER_MODEL:-{model}}}" if role == "curator" else model
-            values["model"] = f"${{{prefix}_MODEL:-{model_default}}}"
-            values["base_url"] = f"${{{prefix}_BASE_URL:-${{LLM_BASE_URL:-{endpoint}}}}}"
-        config_content = "# Agent Team Configuration\n" + yaml.safe_dump(content, sort_keys=False)
-        config_file.write_text(config_content)
-        click.echo(f"Created default config: {config_file}")
-
-    click.echo("\nInitialization complete!")
-    click.echo("\nSet environment variables:")
-    click.echo("  export LLM_BASE_URL=${LLM_BASE_URL:?set LLM_BASE_URL to the OpenAI-compatible URL}")
-    click.echo('  export LLM_API_KEY=""  # optional; only needed if the model service requires auth')
-    click.echo('  export AGENT_TEAM_API_TOKEN=""  # optional; enables Agent Team HTTP Bearer auth')
-    click.echo("  export PRINCIPAL_MODEL=model-name")
-    click.echo("  export MANAGER_MODEL=model-name")
-    click.echo("  export WORKER_MODEL=model-name")
 
 
 def main() -> None:

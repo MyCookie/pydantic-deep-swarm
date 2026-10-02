@@ -29,7 +29,7 @@ class AgentTeamAPIClient:
             if api_token is None
             else api_token
         )
-        self._client = client or httpx.Client(timeout=timeout)
+        self._client = client or httpx.Client(timeout=timeout,trust_env=False)
 
     def _get(self, path: str) -> dict[str, Any]:
         return self._request("GET", path)
@@ -50,11 +50,11 @@ class AgentTeamAPIClient:
             payload = response.json()
         except (httpx.HTTPError, ValueError) as exc:
             raise AgentTeamAPIError(
-                f"{method} {self.base_url}{path} failed: {exc}"
+                f"Agent Team {path} observation failed"
             ) from exc
         if not isinstance(payload, dict):
             raise AgentTeamAPIError(
-                f"{method} {self.base_url}{path} returned a non-object JSON value"
+                f"Agent Team {path} returned a non-object JSON value"
             )
         return payload
 

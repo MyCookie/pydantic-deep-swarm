@@ -59,8 +59,6 @@ mkdir -p \
   "$state_dir/artifacts" \
   "$state_dir/logs"
 
-# KnowledgeStore owns schema creation and migrations; keep initialization in one code path.
-AGENT_TEAM_STATE_DIR="$state_dir" PYTHONPATH="$project/src${PYTHONPATH:+:$PYTHONPATH}" \
-  "$python" -c 'import os; from pathlib import Path; from agent_team.memory.knowledge import KnowledgeStore; KnowledgeStore(Path(os.environ["AGENT_TEAM_STATE_DIR"]) / "knowledge" / "knowledge.db")'
+# Leased foreground startup owns knowledge preparation and migration.
 
 echo "Agent team initialization complete"

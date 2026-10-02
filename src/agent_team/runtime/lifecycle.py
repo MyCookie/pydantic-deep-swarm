@@ -5,11 +5,15 @@ from __future__ import annotations
 import asyncio
 import os
 import signal
+import sys
+import json
+from pathlib import Path
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any
 import uuid
+import tempfile
 
 
 class WorkerState(Enum):
@@ -57,14 +61,14 @@ class ProcessHandle:
         try:
             os.killpg(self.process_group, signal.SIGTERM)
             self.status = "terminating"
-        except (ProcessLookupError, OSError):
+        except ProcessLookupError:
             self.status = "exited"
 
     def kill(self) -> None:
         try:
             os.killpg(self.process_group, signal.SIGKILL)
             self.status = "killed"
-        except (ProcessLookupError, OSError):
+        except ProcessLookupError:
             self.status = "exited"
 
     async def reap(self, hard: bool = True) -> None:
@@ -89,7 +93,7 @@ class ProcessHandle:
                         result = wait()
                         if hasattr(result, "__await__"):
                             await result
-            except (ProcessLookupError, OSError):
+            except ProcessLookupError:
                 pass
             self.status = ("killed" if hard else "terminated") if was_running else "exited"
             self._reaped = True
@@ -317,27 +321,31 @@ class TaskRegistry:
             async_task = worker.async_task
             processes = list(worker.child_processes)
         if terminal:
+            failures = []
             for process in processes:
                 try:
                     await process.reap(hard=hard)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    failures.append(exc)
             async with self._lock:
                 worker = self._workers.get(worker_id)
                 if worker:
-                    worker.child_processes.clear()
+                    worker.child_processes = [item for item in worker.child_processes if not item._reaped]
+            if failures:
+                raise RuntimeError("child_reap_failed") from failures[0]
             return
         if async_task and async_task is not asyncio.current_task() and not async_task.done():
             async_task.cancel()
             try:
                 await async_task
-            except BaseException:
+            except asyncio.CancelledError:
                 pass
+        failures = []
         for process in processes:
             try:
                 await process.reap(hard=hard)
-            except Exception:
-                pass
+            except Exception as exc:
+                failures.append(exc)
         if worker.task_id:
             await self.cancel_task(worker.task_id, error="worker cancelled")
         async with self._lock:
@@ -351,7 +359,9 @@ class TaskRegistry:
                 }:
                     worker.state = WorkerState.CANCELLED
                     worker.completed_at = worker.completed_at or datetime.utcnow()
-                worker.child_processes.clear()
+                worker.child_processes = [item for item in worker.child_processes if not item._reaped]
+        if failures:
+            raise RuntimeError("child_reap_failed") from failures[0]
 
     async def get_concurrent_count(self) -> int:
         async with self._lock:
@@ -452,30 +462,65 @@ class TaskRegistry:
 class ProcessManager:
     """Manage subprocess ownership and cleanup."""
 
-    def __init__(self, registry: TaskRegistry):
+    def __init__(self, registry: TaskRegistry, *, lease=None, scratch_root=None):
         self.registry = registry
+        self.lease = lease
+        self.generation = lease.generation if lease is not None else None
+        self.scratch_root = Path(scratch_root) if scratch_root is not None else None
         self._lock = asyncio.Lock()
+        self._confined_processes: dict[int, Any] = {}
 
     async def spawn(self, worker_id: str, task_id: str, command: list[str]) -> ProcessHandle:
-        process = await asyncio.create_subprocess_exec(
-            *command,
-            start_new_session=True,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        return await self.track_process(worker_id, task_id, process, command)
+        diagnostic_command = list(command)
+        options = {}
+        null_stdin = None
+        if self.lease is not None:
+            self.lease.check_generation(self.generation)
+            if sys.platform != "darwin" or not Path("/usr/bin/sandbox-exec").is_file() or self.scratch_root is None:
+                raise RuntimeError("child_confinement_unavailable: uncontained child modes are refused")
+            _validated_child_executable(command)
+            generation_root = self.scratch_root / self.generation
+            generation_root.mkdir(parents=True, mode=0o700)
+            # Every invocation gets an empty directory, rather than importing
+            # prior scratch names or writable aliases from another generation.
+            if generation_root.is_symlink() or generation_root.resolve() != generation_root.absolute():
+                raise RuntimeError("child_confinement_unavailable: unsafe scratch path")
+            scratch = Path(tempfile.mkdtemp(prefix="child-", dir=generation_root))
+            profile = _darwin_child_profile(scratch, command)
+            command = ["/usr/bin/sandbox-exec", "-p", profile, *command]
+            # asyncio's DEVNULL opens O_RDWR. A read-only null descriptor has
+            # the same EOF behavior without retaining a writable stdin handle.
+            null_stdin = open(os.devnull, "rb")
+            options = {"cwd": scratch, "env": {"PATH": "/usr/bin:/bin", "HOME": str(scratch), "TMPDIR": str(scratch), "PYTHONDONTWRITEBYTECODE": "1"}, "close_fds": True, "stdin": null_stdin}
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *command,
+                start_new_session=True,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                **options,
+            )
+        finally:
+            if null_stdin is not None:
+                null_stdin.close()
+        if self.lease is not None:
+            self._confined_processes[process.pid] = process
+        return await self.track_process(worker_id, task_id, process, diagnostic_command)
 
     async def track_process(
         self, worker_id: str, task_id: str, process: Any, command: list[str]
     ) -> ProcessHandle:
         """Attach an already-created subprocess to a worker."""
+        if self.lease is not None and self._confined_processes.pop(getattr(process, "pid", None), None) is not process:
+            # Tracking a process cannot retroactively impose inherited OS confinement.
+            raise RuntimeError("uncontained_child_refused: use the confined spawn boundary")
         handle = ProcessHandle(
             worker_id=worker_id,
             task_id=task_id,
             pid=process.pid,
             process_group=process.pid,
             start_time=datetime.utcnow(),
-            command=" ".join(command),
+            command="[confined child]" if self.lease is not None else " ".join(command),
             process=process,
         )
         async with self._lock:
@@ -494,6 +539,8 @@ class ProcessManager:
         return handle
 
     async def release_process(self, handle: ProcessHandle, status: str = "exited") -> None:
+        if handle.process is not None and getattr(handle.process, "returncode", None) is None:
+            raise RuntimeError("child_not_reaped: live process remains owned")
         handle.status = status
         if status in {"exited", "timed_out", "cancelled"}:
             handle._reaped = True
@@ -508,20 +555,76 @@ class ProcessManager:
             if not worker:
                 return
             processes = list(worker.child_processes)
-            worker.child_processes.clear()
+        failures = []
         for process in processes:
             try:
                 await process.reap(hard=hard)
-            except Exception:
-                pass
+            except Exception as exc:
+                failures.append(exc)
+        async with self._lock:
+            worker = self.registry._workers.get(worker_id)
+            if worker:
+                worker.child_processes = [item for item in worker.child_processes if not item._reaped]
+        if failures:
+            raise RuntimeError("child_reap_failed") from failures[0]
 
     async def terminate_all_workers(self, hard: bool = True) -> None:
         """Reap every worker-owned subprocess currently registered."""
-        await asyncio.gather(
+        results = await asyncio.gather(
             *(self.terminate_worker_processes(worker_id, hard=hard)
               for worker_id in self.registry.snapshot_workers()),
             return_exceptions=True,
         )
+        failures = [result for result in results if isinstance(result, BaseException)]
+        if failures:
+            raise RuntimeError("child_reap_failed") from failures[0]
+
+
+def _darwin_child_profile(scratch: Path, command: list[str]) -> str:
+    """Grant inherited execution and scratch writes, without broker capabilities.
+
+    In particular, Mach lookup/task ports, signals/process control, network and
+    POSIX IPC are denied by default. Pipe output is diagnostic data, never a
+    durable commit channel. Unsupported interpreter dependencies fail closed.
+    """
+    executable = _validated_child_executable(command)
+    invocation = executable
+    read_roots = {"/System", "/usr/lib", "/usr/share", "/bin", "/usr/bin", str(Path(sys.base_prefix).resolve()), str(scratch)}
+    # A virtualenv with a native executable copy may discover pyvenv.cfg and
+    # read its installation. Aliased executables are refused above; they are
+    # never rewritten to change interpreter semantics.
+    environment_root = invocation.parent.parent
+    if (environment_root / "pyvenv.cfg").is_file():
+        read_roots.add(str(environment_root))
+    reads = " ".join("(subpath " + json.dumps(root) + ")" for root in sorted(read_roots))
+    reads += " (literal " + json.dumps(str(executable)) + ") (literal " + json.dumps(str(invocation)) + ")"
+    traversal = " ".join("(path-ancestors " + json.dumps(root) + ")" for root in sorted(read_roots | {str(invocation), str(executable)}))
+    return (
+        '(version 1) (deny default) (import "dyld-support.sb") (allow process-exec) (allow process-fork) '
+        "(deny syscall-unix (syscall-number SYS_socketpair)) "
+        "(allow sysctl-read) (allow file-read-metadata file-test-existence " + traversal + ") "
+        "(allow file-map-executable " + reads + ") (allow file-read* file-test-existence " + reads +
+        ' (literal "/dev/null") (literal "/dev/random") (literal "/dev/urandom")) '
+        "(allow file-write* (subpath " + json.dumps(str(scratch)) + "))"
+    )
+
+
+def _validated_child_executable(command: list[str]) -> Path:
+    if not command or not Path(command[0]).is_absolute():
+        raise RuntimeError("child_confinement_unavailable: absolute executable required")
+    invocation = Path(command[0]).absolute()
+    try:
+        executable = invocation.resolve(strict=True)
+    except (OSError, RuntimeError):
+        raise RuntimeError("child_confinement_unavailable: executable is unavailable") from None
+    if not executable.is_file() or not os.access(executable, os.X_OK):
+        raise RuntimeError("child_confinement_unavailable: executable is unavailable")
+    if invocation != executable:
+        # The claimed host proves native resolved execution. Executing an
+        # alias has different kernel checks and remains an unsupported mode;
+        # silently rewriting argv would alter virtualenv/interpreter semantics.
+        raise RuntimeError("child_confinement_unavailable: executable aliases are unsupported")
+    return executable
 
 
 class ConcurrencyLimiter:

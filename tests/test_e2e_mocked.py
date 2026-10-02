@@ -15,7 +15,8 @@ from agent_team.worker_factory import get_role_by_name, suggest_roles_for_task
 
 def test_end_to_end_mocked(tmp_path, monkeypatch):
     """Exercise configuration, staffing, report validation, and memory together."""
-    monkeypatch.setenv("AGENT_TEAM_CONFIG_FILE", str(tmp_path / "missing-config.yaml"))
+    monkeypatch.delenv("AGENT_TEAM_CONFIG_FILE", raising=False)
+    monkeypatch.setenv("AGENT_TEAM_STATE_DIR", str(tmp_path / "state"))
     monkeypatch.setenv("LLM_BASE_URL", "http://model-service:8000/v1")
     monkeypatch.setenv("PRINCIPAL_MODEL", "test-principal")
     monkeypatch.setenv("MANAGER_MODEL", "test-manager")

@@ -7,6 +7,7 @@ import shutil
 import subprocess
 from pathlib import Path
 from typing import Any, Callable, Sequence
+from ..subprocess_env import sanitized_subprocess_env
 
 
 class ServiceControlError(RuntimeError):
@@ -62,7 +63,7 @@ class S6ServiceController:
         try:
             result = self.runner(
                 [command, str(self.service_dir)], check=True,
-                capture_output=True, text=True, timeout=5,
+                capture_output=True, text=True, timeout=5,env=sanitized_subprocess_env(),
             )
         except (OSError, subprocess.SubprocessError) as exc:
             detail = getattr(exc, "stderr", None) or str(exc)
@@ -83,6 +84,7 @@ class S6ServiceController:
                 capture_output=True,
                 text=True,
                 timeout=15,
+                env=sanitized_subprocess_env(),
             )
         except PermissionError as exc:
             raise ServiceControlError(

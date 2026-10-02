@@ -2,14 +2,15 @@
 
 ## Prerequisites
 
-The repository does not install system services or inference runtimes. Provision
-these separately:
+The clone-native runtime requires:
 
-- Python 3.11 or newer in an external virtual environment;
+- Python 3.11 or newer and uv (`uv sync --frozen` provisions the clone's environment);
 - an OpenAI-compatible model endpoint;
 - Git;
-- Pi when Pi asset reconciliation is required;
-- s6-overlay when supervised container startup is required.
+
+Pi, Hermes, s6, containers, and a separately provisioned virtual environment are
+optional deployment adapters. The repository does not install inference runtimes
+or system services.
 
 Use the portable variable list in [`.env.example`](../.env.example). Keep actual
 values in an ignored environment file or inject them through the supervisor.
@@ -26,9 +27,29 @@ agent-team swarm detect
 agent-team swarm status --json
 ```
 
-`doctor` checks the running HTTP service and model/configuration state, so a
-stopped service or unavailable model endpoint produces a diagnostic failure.
-The existing `bootstrap` workflow remains a supervised deployment gate.
+`doctor` validates configuration, advertised models, observable path access, and
+nonmutating knowledge inspection. A stopped service is normal in core scope.
+With enabled knowledge, a missing existing lock exits 2 (`inspection_unavailable`)
+and an occupied lock exits 2 (`inspection_deferred`). A safely inspected stopped
+canonical store passes; definite failures exit 1. Optional deployment checks are
+selected with `--with-pi` or `--supervisor=s6`. Readiness observations do not prove
+that an endpoint owns the selected state directory. The existing `bootstrap`
+workflow retains its separate deployed-installation report and requirements.
+
+`init`, `serve`, and `doctor` share `--config`, `--state-dir`, and
+`--workspace-dir`. File selection is CLI, environment, then the canonical state
+configuration path. Path fields resolve independently by CLI, YAML, environment,
+and default, with mismatches that silently redirect environment-selected state
+rejected. Generated YAML contains absolute paths. Repeat init preserves it;
+`init --overwrite-config` saves a backup before whole-file atomic replacement.
+See the [configuration contract](configuration-contract.md) for the full rules.
+
+Leased child commands use the Darwin `sandbox-exec` backend with an absolute,
+resolved executable and a fresh generation-specific scratch directory. Executable
+aliases and platforms without this confinement backend are refused. Children have
+no durable write or commit authority; the owner checks its live generation before
+managed mutations. Acceptance reports qualify the tested host and native sandbox
+policy rather than claiming confinement on other operating-system versions.
 
 Set `AGENT_TEAM_SUPERVISOR=none` to disable the optional adapter even when legacy
 service variables are inherited. Set it to `s6` to require the adapter. When unset,
@@ -38,15 +59,15 @@ executables alone do not opt in. In core mode, supervisor state is
 Selected but unusable supervision is `unavailable` and fails status.
 
 Optional templates stay in `s6-service/`; deployment tooling installs live copies
-outside the checkout. `swarm reconcile` requires s6 selection even for dry runs.
-Dry runs report planned changes without verification. Restarting reconciliation
-preflights supervision before writes; `--no-restart` retains file-only updates
-and reports `pending_restart` when files changed or activation remains unverified.
-Live-runfile selection does not override authoritative YAML; desired configuration
-and the observed API must agree before runtime verification can succeed. Core
-status resolves `auto` without writing it. The compatibility control plane
-currently requires one common model endpoint; distinct explicit role models on
-that endpoint are checked against their own configured selections.
+outside the checkout. Core `swarm reconcile` persists one owned YAML file and
+does not require restart capability for planning or configuration persistence.
+Dry runs create no locks, directories, or temporary files. `--no-restart` leaves
+activation pending, and `--no-verify` cannot report verified activation. An
+unavailable requested restart never turns a committed configuration into a
+verified runtime. Source and runfiles are not model authority and are not edited.
+Core status resolves `auto` without writing it and compares each observed role
+with its own desired model and endpoint. See the
+[model-selection contract](model-selection-contract.md).
 
 ## Optional s6 deployment paths
 
@@ -219,9 +240,9 @@ services.
 
 The source service definitions are:
 
-- `s6-service/agent-team-init/` — creates external state directories and opens
-  the knowledge store through its owning code path;
-- `s6-service/agent-team/` — runs Uvicorn with the configured service user,
+- `s6-service/agent-team-init/` — initializes external directories and configuration
+  without creating or migrating knowledge databases;
+- `s6-service/agent-team/` — invokes foreground serve with the configured service user,
   project root, Python executable, host, and port.
 
 Operate the installed service definition through the configured command:
@@ -233,6 +254,20 @@ Operate the installed service definition through the configured command:
 
 The default HTTP bind is `localhost:8080`. Keep it loopback/container-local when
 `AGENT_TEAM_API_TOKEN` is empty.
+
+Standalone serve uses one leased FastAPI lifespan, bounded startup/shutdown, and
+one listener. It emits `serve_ready` on stdout after actual binding. The first
+SIGINT/SIGTERM stops admission and drains owned work; clean exits are 130/143.
+Startup or cleanup failures exit 1 with a sanitized `serve_failed` event on
+stderr. The [foreground contract](foreground-serve-contract.md) defines phases,
+deadlines, readiness, and child-write boundaries.
+
+Knowledge has one canonical path, `<state_dir>/knowledge/knowledge.db`. Enabled
+leased startup automatically reconciles supported legacy/empty/identical state,
+preserving full history in verified archives with journaled recovery. Divergent,
+invalid, unsafe, or unprovable state fails closed. Disabled knowledge opens and
+migrates nothing. See [knowledge migration](knowledge-database-migration.md) for
+safe offline recovery; retain originals, sidecars, and recovery evidence.
 
 ## Liveness and readiness
 

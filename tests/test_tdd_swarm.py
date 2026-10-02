@@ -213,8 +213,8 @@ class TestGreenConfig:
         assert config.models["principal"].base_url == "http://test:8000/v1"
         assert config.models["principal"].model == "test-model"
 
-    def test_green_config_defaults_to_local_endpoint(self):
-        """GREEN: Config defaults to local inference endpoint."""
+    def test_green_config_requires_explicit_endpoint(self):
+        """Environment bootstrap has no deployment hostname fallback."""
         import os
         # Clear env vars
         os.environ.pop("LLM_BASE_URL", None)
@@ -222,7 +222,7 @@ class TestGreenConfig:
 
         config = Config.from_env()
 
-        assert config.models["principal"].base_url == "http://model-service:8000/v1"
+        assert config.models["principal"].base_url is None
         assert config.models["principal"].model == "auto"
 
 
@@ -385,7 +385,8 @@ def initialized_api(tmp_path):
     app_module.config = Config(runtime=RuntimeConfig(state_dir=tmp_path))
     app_module.engine = object()
     app_module.session_store = SessionStore(tmp_path / "sessions")
-    app_module.runtime_lease = object()
+    from types import SimpleNamespace
+    app_module.runtime_lease = SimpleNamespace(is_held=True)
     app_module._sessions.clear()
     app_module._session_locks.clear()
     try:

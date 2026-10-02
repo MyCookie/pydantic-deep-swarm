@@ -29,7 +29,10 @@ class AgentMemory:
     MAX_ITEMS = 100
     MAX_MAP_ENTRIES = 100
 
-    def __init__(self, agent_id: str, memory_dir: Path, scope: str | None = None):
+    def __init__(self, agent_id: str, memory_dir: Path, scope: str | None = None, *, write_guard=None):
+        self.write_guard = write_guard
+        if write_guard is not None:
+            write_guard()
         self.agent_id = self._validate_component(agent_id, "agent_id")
         self.scope = self._validate_component(scope, "scope") if scope is not None else None
         self.memory_root = Path(memory_dir).expanduser().resolve()
@@ -63,6 +66,8 @@ class AgentMemory:
     @contextmanager
     def _lock(self) -> Iterator[None]:
         """Lock this memory file across threads and cooperating processes."""
+        if self.write_guard is not None:
+            self.write_guard()
         thread_lock = self._thread_lock_for(self.lock_file)
         with thread_lock:
             with self.lock_file.open("a+b") as handle:
@@ -148,6 +153,8 @@ class AgentMemory:
         return state, state != value
 
     def _backup_corrupt_locked(self) -> None:
+        if self.write_guard is not None:
+            self.write_guard()
         if not self.memory_file.exists():
             return
         backup = self.memory_file.with_name(f"{self.memory_file.name}.corrupt.{uuid.uuid4().hex}")
@@ -179,6 +186,8 @@ class AgentMemory:
             os.close(directory_fd)
 
     def _write_locked(self, state: dict[str, Any]) -> None:
+        if self.write_guard is not None:
+            self.write_guard()
         safe_state = redact_sensitive_data(state)
         state.clear()
         state.update(safe_state)
@@ -190,6 +199,8 @@ class AgentMemory:
                 handle.write("\n")
                 handle.flush()
                 os.fsync(handle.fileno())
+            if self.write_guard is not None:
+                self.write_guard()
             os.replace(temporary, self.memory_file)
             self._fsync_directory()
         finally:

@@ -181,7 +181,7 @@ def test_engine_rejects_runtime_paths_inside_checkout():
 def test_config_reads_external_runtime_roots_from_environment(monkeypatch, tmp_path: Path):
     state_dir = tmp_path / "state"
     workspace_dir = tmp_path / "workspace"
-    monkeypatch.setenv("AGENT_TEAM_CONFIG_FILE", str(tmp_path / "not-present.yaml"))
+    monkeypatch.delenv("AGENT_TEAM_CONFIG_FILE", raising=False)
     monkeypatch.setenv("AGENT_TEAM_STATE_DIR", str(state_dir))
     monkeypatch.setenv("AGENT_TEAM_WORKSPACE_DIR", str(workspace_dir))
 

@@ -207,6 +207,7 @@ def _initialize_runtime(loaded_config=None, *, deadline=None) -> None:
         )
         session_store = store
         store.recover_incomplete(deadline=deadline)
+        _check_startup(deadline)
         _phase = "retention"
         _check_startup(deadline)
         retention_result = DurableRetention(

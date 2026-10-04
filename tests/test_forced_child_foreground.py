@@ -192,11 +192,12 @@ def kill_and_observe_orphan(pid,group):
 
 
 @pytest.mark.parametrize('mode',['shutdown-timeout','second-signal'])
+@pytest.mark.required_platform('darwin')
 def test_forced_foreground_preserves_durable_authority_with_surviving_child(tmp_path,request,mode):
     began=time.monotonic(); info=None; cleanup=None; owners=[]
     resources=ExitStack()
     try:
-        channel=resources.enter_context(tempfile.TemporaryDirectory(prefix='at-forced-',dir='/private/tmp'))
+        channel=resources.enter_context(tempfile.TemporaryDirectory(prefix='at-forced-',dir=str(Path('/tmp').resolve())))
         unix=resources.enter_context(socket.socket(socket.AF_UNIX,socket.SOCK_STREAM))
         unix_path=Path(channel)/'s'; unix.bind(str(unix_path)); unix.listen(1)
         buffer=tmp_path/'generation-buffer.json'

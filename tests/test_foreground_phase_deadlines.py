@@ -16,12 +16,21 @@ from test_foreground_contract import (
 
 
 PHASE_OWNER = r'''
-import errno, json, os, time
+import errno, json, os, sys, time
 import agent_team.app as boundary
 import agent_team.memory.preparation as preparation
 mode = os.environ["FIXTURE_MODE"]
 def phase_barrier(phase, deadline):
     print(json.dumps({"event":"fixture_barrier","name":phase,"pid":os.getpid()}),flush=True)
+    if phase == "recovery":
+        # Delay the real watchdog thread across expiry so the caller must check
+        # a late recovery return itself. Only this owner process changes scheduling.
+        while time.monotonic() < deadline - .1:
+            time.sleep(.01)
+        sys.setswitchinterval(1)
+        while time.monotonic() < deadline + .05:
+            pass
+        return
     while time.monotonic() < deadline + .05:
         time.sleep(.01)
 if mode in {"deadline_knowledge", "migration_fault"}:
@@ -38,8 +47,9 @@ if mode in {"deadline_knowledge", "migration_fault"}:
 if mode == "deadline_recovery":
     recover = boundary.SessionStore.recover_incomplete
     def wrapped(self, *, deadline=None):
+        result = recover(self, deadline=deadline)
         phase_barrier("recovery", deadline)
-        return recover(self, deadline=deadline)
+        return result
     boundary.SessionStore.recover_incomplete = wrapped
 if mode == "deadline_retention":
     sweep = boundary.DurableRetention.sweep

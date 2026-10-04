@@ -7,6 +7,11 @@ head. The fixed review baseline for this change is `37501dc`. The agreed public
 seams are subprocess confinement/refusal, isolated test inventory, coverage
 measurement/gating, and the aggregate CI gate command.
 
+User-confirmed regression addendum: foreground serve CLI startup/failure events
+are an agreed public seam. Preserve accurate recovery timeout attribution when
+the watchdog is delayed, using the existing real-process acceptance case with
+its actual deadline, watchdog, listener, lease cleanup and successor proof.
+
 Acceptance obligations:
 
 - Preserve fail-closed child launching. Darwin native confinement positives

@@ -21,11 +21,29 @@ dependencies = [
 agent-team = "agent_team.cli:main"
 
 [build-system]
-requires = ["uv_build>=0.12.0,<0.13.0"]
+requires = ["uv_build==0.12.21"]
 build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "coverage>=7.16.2,<8",
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
 ]
+
+[tool.coverage.run]
+branch = true
+source = ["agent_team"]
+relative_files = true
+omit = []
+
+[tool.coverage.report]
+include_namespace_packages = true
+
+[tool.agent-team.coverage]
+# Measured on Linux, 2026-10-02: 6231/7461 lines and 1530/2228 branches.
+# These floors ratchet that baseline; they are not a claim of 95% coverage.
+line-floor = 83.50
+branch-floor = 68.60
+target = 95.0
+scope = "pytest-interpreter"

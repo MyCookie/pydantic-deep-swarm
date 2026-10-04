@@ -1,0 +1,173 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  portable:
+    name: Linux Python ${{ matrix.python }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11.16', '3.14.7']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: '0.12.21'
+          python-version: ${{ matrix.python }}
+      - name: Install frozen environment
+        run: uv sync --frozen
+      - name: Run isolated tests and collect coverage
+        run: |
+          set -o pipefail
+          .venv/bin/python scripts/run_isolated_tests.py \
+            --coverage-dir "$RUNNER_TEMP/coverage" \
+            --inventory "$RUNNER_TEMP/test-inventory.json" \
+            2>&1 | tee "$RUNNER_TEMP/tests.log"
+      - name: Enforce measured coverage ratchet
+        run: .venv/bin/python scripts/check_coverage.py "$RUNNER_TEMP/coverage/coverage.json"
+      - name: Retain test and coverage evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: linux-python-${{ matrix.python }}-evidence
+          path: |
+            ${{ runner.temp }}/coverage
+            ${{ runner.temp }}/test-inventory.json
+            ${{ runner.temp }}/tests.log
+          if-no-files-found: warn
+          retention-days: 14
+
+  packaging:
+    name: Packaging and workflow validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: '0.12.21'
+          python-version: '3.11.16'
+      - name: Validate Actions syntax with verified actionlint
+        run: |
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          curl --fail --silent --show-error --location \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
+            --output "$archive"
+          printf '%s  %s\n' 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8 "$archive" | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/actionlint"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/actionlint" actionlint
+          "$RUNNER_TEMP/actionlint/actionlint"
+      - name: Check assets, dependencies and compilation
+        run: |
+          set -o pipefail
+          uv sync --frozen 2>&1 | tee "$RUNNER_TEMP/frozen-sync.log"
+          uv lock --check --offline 2>&1 | tee "$RUNNER_TEMP/lock-check.log"
+          uv pip check 2>&1 | tee "$RUNNER_TEMP/dependencies.log"
+          .venv/bin/python -m compileall -q src tests pi scripts
+          .venv/bin/python pi/manifest_validator.py pi/manifest.json
+          sh -n s6-service/agent-team/run
+          sh -n s6-service/agent-team-init/run
+      - name: Build and install wheel with locked hash-checked dependencies
+        run: |
+          set -o pipefail
+          uv build --no-sources --out-dir "$RUNNER_TEMP/dist" 2>&1 | tee "$RUNNER_TEMP/build.log"
+          uv export --frozen --no-dev --no-emit-project --format requirements.txt \
+            --output-file "$RUNNER_TEMP/runtime-requirements.txt"
+          uv venv --python 3.11.16 "$RUNNER_TEMP/wheel-env"
+          uv pip sync --require-hashes --python "$RUNNER_TEMP/wheel-env/bin/python" \
+            "$RUNNER_TEMP/runtime-requirements.txt"
+          uv pip install --no-deps --python "$RUNNER_TEMP/wheel-env/bin/python" \
+            "$RUNNER_TEMP"/dist/*.whl
+          uv pip check --python "$RUNNER_TEMP/wheel-env/bin/python"
+      - name: Exercise installed wheel against deterministic loopback model
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/wheel-smoke"
+          "$RUNNER_TEMP/wheel-env/bin/python" scripts/standalone_smoke.py \
+            --binary "$RUNNER_TEMP/wheel-env/bin/agent-team" \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --report "$RUNNER_TEMP/wheel-smoke/report.json" \
+            2>&1 | tee "$RUNNER_TEMP/wheel-smoke/console.log"
+      - name: Retain distribution and smoke evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: packaging-evidence
+          path: |
+            ${{ runner.temp }}/dist
+            ${{ runner.temp }}/runtime-requirements.txt
+            ${{ runner.temp }}/wheel-smoke
+            ${{ runner.temp }}/*.log
+          if-no-files-found: warn
+          retention-days: 14
+
+  acceptance:
+    name: macOS native standalone acceptance
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: '0.12.21'
+          python-version: '3.11.16'
+      - name: Prove exact-revision fresh clone and installed wheel
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/acceptance"
+          uv python install 3.11.16
+          interpreter="$(uv python find 3.11.16)"
+          "$interpreter" scripts/run_standalone_acceptance.py \
+            --candidate "$GITHUB_WORKSPACE" --report-dir "$RUNNER_TEMP/acceptance" \
+            2>&1 | tee "$RUNNER_TEMP/acceptance/controller.log"
+      - name: Retain native acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: macos-native-acceptance-evidence
+          path: ${{ runner.temp }}/acceptance
+          if-no-files-found: warn
+          retention-days: 14
+
+  gate:
+    name: PR gate
+    if: always()
+    needs: [portable, packaging, acceptance]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Require every dependency to succeed
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          printf '%s' "$NEEDS_JSON" | python3 scripts/check_ci_gate.py \
+            --expected portable packaging acceptance

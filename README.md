@@ -23,6 +23,9 @@ Component-specific specifications remain beside their schemas and assets:
 [optional delegation adapter](integrations/hermes/principal-agent-team/README.md), and
 [Git provenance](provenance/README.md).
 
+See the [LangGraph swarm example](examples/README.md) for a small, runnable
+Principal → Manager → Worker flow with typed handoffs.
+
 ## Runtime flow
 
 ```text

@@ -1,5 +1,33 @@
 # Agent Team testing
 
+## Pull request checks
+
+The [CI workflow](../.github/workflows/ci.yml) runs portable Linux tests with
+coverage, package/asset/workflow validation and installed-wheel smoke, plus
+native macOS standalone acceptance. The stable `PR gate` requires every job to
+succeed. [Feature development](agents/feature-workflow.md) adds independent
+subagent local review and a fresh holistic review of the final PR head.
+
+Darwin confinement positives execute on macOS. Off-host skips are recorded as
+explicit platform exclusions, rather than passed native proof. Missing sandbox
+capability on macOS still blocks native acceptance. Linux portable suite success
+does not establish the complete Darwin-native acceptance registry.
+
+Run coverage locally with an external, initially empty report directory:
+
+```sh
+.venv/bin/python scripts/run_isolated_tests.py \
+  --coverage-dir /absolute/external/coverage \
+  --inventory /absolute/external/test-inventory.json
+.venv/bin/python scripts/check_coverage.py /absolute/external/coverage/coverage.json
+```
+
+Coverage measures the pytest interpreter's execution of `agent_team`; isolated
+child-process execution is outside this measurement. Read the report metadata
+and the line/branch floors and 95% targets in `pyproject.toml` together. Ratchet
+floors upward as meaningful behavior coverage grows; report current values
+without claiming that a passing floor has reached the target.
+
 The [standalone acceptance gate](standalone-acceptance-gate.md) specifies issue #8's
 fresh-clone `uv sync --frozen`, installed CLI, deterministic loopback model,
 signal, migration, nonpollution, and evidence requirements. The developer commands

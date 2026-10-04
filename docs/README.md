@@ -19,6 +19,8 @@ architecture, runtime behavior, operations, and testing guidance live here.
   transports, and release checks.
 - [GitOps runbook](gitops-runbook.md) — exact-revision promotion, Pi asset
   reconciliation, rollback, and operational recovery.
+- [Feature development](agents/feature-workflow.md) — subagent red/green TDD,
+  independent local and holistic reviews, and required GitHub gates.
 
 ## Accepted runtime contracts
 

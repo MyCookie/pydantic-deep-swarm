@@ -16,6 +16,7 @@ Start with the [documentation index](docs/README.md):
 - [Operations](docs/operations.md)
 - [Testing](docs/testing.md)
 - [GitOps and Pi runbook](docs/gitops-runbook.md)
+- [Feature development and PR gates](docs/agents/feature-workflow.md)
 
 Component-specific specifications remain beside their schemas and assets:
 [Pi package](pi/README.md), [delegation skill](pi/skills/agent-team-delegation/SKILL.md),

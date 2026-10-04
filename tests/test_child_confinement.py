@@ -96,6 +96,7 @@ def bounded_process_case(function):
 
 
 @pytest.mark.asyncio
+@pytest.mark.required_platform('darwin')
 @bounded_process_case
 async def test_darwin_detached_child_capability_boundary(tmp_path, request):
     """Required on the claimed Darwin platform; absence is a failure, not skip."""
@@ -121,7 +122,7 @@ async def test_darwin_detached_child_capability_boundary(tmp_path, request):
         unix=resources.enter_context(socket.socket(socket.AF_UNIX,socket.SOCK_STREAM))
         # Darwin sockaddr_un has a short path limit; fixture ownership and
         # cleanup are preserved in a deliberately short external directory.
-        channel_dir=resources.enter_context(tempfile.TemporaryDirectory(prefix='at-ipc-',dir='/private/tmp'))
+        channel_dir=resources.enter_context(tempfile.TemporaryDirectory(prefix='at-ipc-',dir=str(Path('/tmp').resolve())))
         unix_path=Path(channel_dir)/'s'; unix.bind(str(unix_path)); unix.listen(1)
         payload={'targets':{name:str(path) for name,path in targets.items()},
                  'inherited_fd':99,'owner_pid':os.getpid(),'port':listener.getsockname()[1],
@@ -230,7 +231,8 @@ async def test_executable_alias_mode_refused(tmp_path, request):
     with RuntimeLease(state/'runtime.lock') as lease:
         registry=TaskRegistry(); worker=await registry.register_worker('worker'); task=await registry.register_task(worker)
         manager=ProcessManager(registry,lease=lease,scratch_root=state/'scratch')
-        with pytest.raises(RuntimeError,match='executable aliases are unsupported'):
+        refusal = 'executable aliases are unsupported' if sys.platform == 'darwin' else 'child_confinement_unavailable'
+        with pytest.raises(RuntimeError,match=refusal):
             await manager.spawn(worker,task,[str(alias),'-c','pass'])
         assert not (state/'scratch').exists() and not registry._workers[worker].child_processes
     after=manifest({'durable':preserved}); assert before==after

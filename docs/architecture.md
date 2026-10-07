@@ -48,6 +48,23 @@ The runtime supports separate OpenAI-compatible model configuration for:
 All roles may point to one local endpoint or to different endpoints. Model names
 and base URLs are configuration, not orchestration state.
 
+The principal, manager and curator use `SimpleChatModel`, which carries typed
+results as JSON inside message content. Workers run on a Pydantic AI agent over
+an `OpenAIChatModel` and use native OpenAI tool calling: the request lists the
+assignment's granted tools and a `final_result` output tool, the endpoint
+answers with `tool_calls`, and tool results return as `role: "tool"` messages.
+The worker endpoint must therefore support native tool calling, including
+`tool_choice: "required"`. Worker requests use a 120-second timeout with no
+client retries and one connection per request. Each request carries a fixed
+header set: `Host` from the configured base URL, `Accept` and `Content-Type`
+of `application/json`, `Accept-Encoding: gzip, deflate`,
+`User-Agent: agent-team-worker`, `Connection: close`, the computed
+`Content-Length`, and `Authorization: Bearer` only when `LLM_API_KEY` is set.
+Worker requests refuse redirects, and the key is bound to the configured
+origin: `Authorization` is added only when a request's scheme, host and port
+(default ports filled in) match the configured base URL's.
+No `OPENAI_*` environment variable changes the worker base URL, key or headers.
+
 ## Typed boundaries
 
 The contracts in [`src/agent_team/contracts`](../src/agent_team/contracts/__init__.py)
@@ -148,6 +165,17 @@ The engine owns:
 - a concurrency limiter;
 - per-worker model/tool turn budgets;
 - active project and root-task maps.
+
+Every worker model request and every executed tool call consumes one turn from
+the worker's budget, and tool calls also count toward `tools.max_tool_calls`.
+Tool calls run one at a time, so a batch of calls in one response cannot pass
+either limit. Reaching a limit ends the worker with a schema-shaped `partial`
+result naming the limit. Invalid structured output gets one retry before the
+worker fails. Omitted acceptance-criterion IDs get one retry request; output
+still missing them is accepted as returned. A call to an unknown tool name, or
+with invalid arguments, runs nothing: it returns to the model as a retry prompt
+and costs a model turn, not a tool call. A second consecutive invalid call to
+the same tool raises, and the worker is marked failed.
 
 A `ManagerPlan` is executed as dependency-ready layers. Independent tasks in one
 layer run concurrently; dependent tasks receive compact summaries from completed

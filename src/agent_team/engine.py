@@ -145,7 +145,7 @@ class AgentTeamEngine:
         self._discovered_models: dict[str, str] = {}
         self.principal_model = self._create_model(config.models.get("principal"))
         self.manager_model = self._create_model(config.models.get("manager"))
-        self.worker_model = self._create_model(config.models.get("worker"))
+        self.worker_model = self._create_worker_model(config.models.get("worker"))
         self.curator_model = None
         if config.memory.enabled and config.memory.shared_knowledge and config.memory.curator_enabled:
             self.curator_model = self._create_model(
@@ -203,15 +203,11 @@ class AgentTeamEngine:
         self._close_lock = asyncio.Lock()
         self._closed = False
 
-    def _create_model(self, model_config) -> Any:
-        """Create a model wrapper, discovering a sole advertised model when requested."""
+    def _resolve_model_name(self, model_config) -> str:
+        """Return the configured model, discovering a sole advertised model for ``auto``."""
         if not model_config:
             raise ValueError("Model config required")
-        from .models.http_model import create_simple_model
-
-        base_url = model_config.base_url
-        canonical_base_url = base_url.rstrip("/")
-        api_key = os.getenv("LLM_API_KEY", "")
+        canonical_base_url = model_config.base_url.rstrip("/")
         model_name = model_config.model
         if model_name == "auto":
             if canonical_base_url not in self._discovered_models:
@@ -220,11 +216,28 @@ class AgentTeamEngine:
                 ).detect_model()
             model_name = self._discovered_models[canonical_base_url]
             model_config.model = model_name
+        return model_name
 
+    def _create_model(self, model_config) -> Any:
+        """Create a text-protocol model wrapper for the principal, manager or curator."""
+        from .models.http_model import create_simple_model
+
+        model_name = self._resolve_model_name(model_config)
         return create_simple_model(
-            base_url=base_url,
+            base_url=model_config.base_url,
             model_name=model_name,
-            api_key=api_key,
+            api_key=os.getenv("LLM_API_KEY", ""),
+        )
+
+    def _create_worker_model(self, model_config) -> Any:
+        """Create the Pydantic AI worker model with native tool calling."""
+        from .models.worker_model import create_worker_model
+
+        model_name = self._resolve_model_name(model_config)
+        return create_worker_model(
+            base_url=model_config.base_url,
+            model_name=model_name,
+            api_key=os.getenv("LLM_API_KEY", ""),
         )
 
     async def run(self, user_input: str, session_id: str | None = None) -> CompletionReport:

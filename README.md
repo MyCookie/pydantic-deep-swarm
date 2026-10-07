@@ -79,6 +79,9 @@ ownership it also exits 2 because SQL inspection is deferred. After a clean stop
 the existing free lock permits full inspection. Doctor never repairs state.
 
 Use an explicit advertised model ID when the catalog contains several models.
+The worker endpoint must support native OpenAI tool calling (`tools`,
+`tool_calls`, and `tool_choice: "required"`); the principal, manager and
+curator need only plain chat completions.
 Hermes, Pi, s6, Docker, root, and an external virtual environment are optional
 deployment concerns. The exact behavior is specified in the
 [configuration](docs/configuration-contract.md),

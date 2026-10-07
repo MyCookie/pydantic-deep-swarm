@@ -36,6 +36,22 @@ _NO_KEY_PLACEHOLDER = "agent-team-no-key"
 _DEFAULT_PORTS = {"http": 80, "https": 443}
 
 
+class _NoPlatformProbeOpenAI(openai.AsyncOpenAI):
+    """``AsyncOpenAI`` that never probes the host platform.
+
+    Before its first request the SDK fills a private ``_platform`` cache from
+    ``platform.platform()`` for its ``X-Stainless-OS`` header. That probe starts
+    child processes (``uname -p``, and ``file`` on macOS), which the installed
+    core must never do, and the request hook drops the header anyway. Setting
+    the cache up front skips the probe. ``test_e_worker_request_starts_no_child_process``
+    fails if an SDK upgrade changes this internal.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._platform = "Unknown"
+
+
 def _origin(url) -> tuple:
     """Scheme, host and port of a URL from the HTTP client's own URL type.
 
@@ -72,7 +88,7 @@ def create_worker_model(base_url: str, model_name: str, api_key: str = "") -> Op
         follow_redirects=False,
         event_hooks={"request": [restrict_headers]},
     )
-    client = openai.AsyncOpenAI(
+    client = _NoPlatformProbeOpenAI(
         base_url=base_url,
         api_key=api_key or _NO_KEY_PLACEHOLDER,
         timeout=REQUEST_TIMEOUT_SECONDS,

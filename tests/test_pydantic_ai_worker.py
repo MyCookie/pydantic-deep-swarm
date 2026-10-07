@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import platform
+import sys
 import threading
 import time
 from dataclasses import dataclass, field
@@ -32,7 +35,7 @@ from agent_team.contracts import (
     WorkerTaskSpec,
 )
 from agent_team.engine import AgentTeamEngine
-from agent_team.runtime.cancellation import WorkerTurnBudget
+from agent_team.runtime.cancellation import ProjectTimeoutError, WorkerTurnBudget
 from agent_team.worker_tools import ToolAwareWorkerAgent, WorkerToolExecutor
 
 
@@ -658,7 +661,7 @@ def following_redirects(monkeypatch):
         return real.DefaultAsyncHttpxClient(**{**kwargs, "follow_redirects": True})
 
     monkeypatch.setattr(
-        worker_model, "openai", SimpleNamespace(DefaultAsyncHttpxClient=follow, AsyncOpenAI=real.AsyncOpenAI)
+        worker_model, "openai", SimpleNamespace(DefaultAsyncHttpxClient=follow)
     )
 
 
@@ -726,7 +729,7 @@ async def test_e2_bearer_auth_reaches_the_configured_origin_however_its_default_
 
         monkeypatch.setattr(
             worker_model, "openai",
-            SimpleNamespace(DefaultAsyncHttpxClient=via_fake_server, AsyncOpenAI=real.AsyncOpenAI),
+            SimpleNamespace(DefaultAsyncHttpxClient=via_fake_server),
         )
         engine = delegated_engine(tmp_path, base_url, ["read_file"])
         try:
@@ -738,3 +741,93 @@ async def test_e2_bearer_auth_reaches_the_configured_origin_however_its_default_
     assert len(server.requests) == 1
     assert server.requests[0]["headers"]["Authorization"] == "Bearer worker-secret"
     assert result.report.acceptance_results[0].status == "passed"
+
+
+# Process creation during a worker run. Audit hooks cannot be removed, so the
+# hook is installed once and records only while a test opens its window.
+_SPAWN_EVENTS = ("subprocess.Popen", "os.exec", "os.posix_spawn", "os.spawn", "os.system", "os.fork")
+_spawn_window: dict = {"open": False, "events": []}
+
+
+def _record_spawns(event, args):
+    if _spawn_window["open"] and event.startswith(_SPAWN_EVENTS):
+        # Executable and argv only: the remaining arguments include the environment.
+        _spawn_window["events"].append((event, repr(args[:2])[:200]))
+
+
+sys.addaudithook(_record_spawns)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("host_os", ["this-host", "darwin"])
+async def test_e_worker_request_starts_no_child_process(tmp_path, monkeypatch, host_os):
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    # Python caches platform probes per process; clear them so this test sees a
+    # first request even when other code already probed the platform.
+    monkeypatch.setattr(platform, "_uname_cache", None)
+    monkeypatch.setattr(platform, "_platform_cache", {})
+    if host_os == "darwin":
+        # The macOS runner's path: platform.platform() there also runs `file`.
+        darwin = os.uname_result(("Darwin", "runner", "24.0.0", "Darwin Kernel Version 24.0.0", "arm64"))
+        monkeypatch.setattr(os, "uname", lambda: darwin)
+
+    with FakeOpenAIServer(lambda payload: native_call("call_final", "final_result", COMPLETE_OUTPUT)) as server:
+        engine = delegated_engine(tmp_path, server.base_url, ["read_file"])
+        _spawn_window["events"] = []
+        _spawn_window["open"] = True
+        try:
+            result = await engine.run_delegated_brief(DELEGATED_BRIEF, session_id="no-spawn")
+        finally:
+            _spawn_window["open"] = False
+            await engine.close()
+
+    assert server.errors == []
+    assert len(server.requests) == 1
+    assert result.report.status == "complete"
+    assert _spawn_window["events"] == [], _spawn_window["events"]
+
+
+@pytest.mark.asyncio
+async def test_w4_project_timeout_on_a_tool_turn_propagates_without_a_partial_result(tmp_path):
+    turns: list[str] = []
+
+    def project_deadline():
+        turns.append("before")
+        if len(turns) == 2:  # the first tool call, after one model turn
+            raise ProjectTimeoutError("Project p exceeded total timeout")
+
+    budget = WorkerTurnBudget(max_turns=10, before_turn=project_deadline)
+    script = Script(call("write_file", {"path": "late.txt", "content": "x"}), final({"status": "complete"}))
+    executor = WorkerToolExecutor(tmp_path)
+
+    with pytest.raises(ProjectTimeoutError):
+        await ToolAwareWorkerAgent(script.model, "worker", executor, turn_budget=budget).run(
+            "finish the assignment", response_format=WorkerOutput
+        )
+
+    assert turns == ["before", "before"]
+    assert script.calls == 1
+    assert executor.results == []
+    assert not (tmp_path / "late.txt").exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("request_url", "authorized"),
+    [
+        ("https://worker.test:8443/v1/chat/completions", True),
+        ("http://worker.test:8443/v1/chat/completions", False),
+        ("https://other.test:8443/v1/chat/completions", False),
+        ("https://worker.test:9443/v1/chat/completions", False),
+    ],
+)
+async def test_e2_bearer_auth_is_bound_to_the_configured_scheme_host_and_port(request_url, authorized):
+    from agent_team.models.worker_model import create_worker_model
+
+    model = create_worker_model("https://worker.test:8443/v1", "worker-model", "worker-secret")
+    request = httpx2.Request("POST", request_url, content=b"{}")
+
+    for hook in model.client._client.event_hooks["request"]:
+        await hook(request)
+
+    assert request.headers.get("Authorization") == ("Bearer worker-secret" if authorized else None)

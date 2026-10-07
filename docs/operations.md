@@ -5,7 +5,9 @@
 The clone-native runtime requires:
 
 - Python 3.11 or newer and uv (`uv sync --frozen` provisions the clone's environment);
-- an OpenAI-compatible model endpoint;
+- an OpenAI-compatible model endpoint. The worker endpoint must support native
+  tool calls (`tools`, `tool_calls`) and `tool_choice: "required"`; the
+  principal, manager and curator need only chat completions;
 - Git;
 
 Pi, Hermes, s6, containers, and a separately provisioned virtual environment are

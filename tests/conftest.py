@@ -22,3 +22,24 @@ def pytest_collection_modifyitems(items):
         if (marker is not None and NATIVE_PROOFS.get(item.nodeid) == marker.args[0]
                 and marker.args[0] != sys.platform):
             item.add_marker(pytest.mark.skip(reason=f"native proof requires {marker.args[0]}"))
+
+
+@pytest.fixture
+def offered_tool_names():
+    """Return an async helper naming the tools the worker loop offers its model."""
+    from pydantic_ai.messages import ModelResponse, TextPart
+    from pydantic_ai.models.function import FunctionModel
+
+    from agent_team.worker_tools import ToolAwareWorkerAgent
+
+    async def offered(executor) -> list[str]:
+        seen: list[str] = []
+
+        def respond(messages, info):
+            seen.extend(sorted(tool.name for tool in info.function_tools))
+            return ModelResponse(parts=[TextPart("done")])
+
+        await ToolAwareWorkerAgent(FunctionModel(respond), "worker", executor).run("list the tools")
+        return seen
+
+    return offered

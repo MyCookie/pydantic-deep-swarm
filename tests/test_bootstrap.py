@@ -261,6 +261,7 @@ def test_bootstrap_dependency_probe_does_not_inherit_credentials(tmp_path: Path,
                 for name in (
                     "pydantic",
                     "pydantic_ai",
+                    "openai",
                     "httpx",
                     "fastapi",
                     "uvicorn",
@@ -292,6 +293,24 @@ def test_bootstrap_dependency_probe_does_not_inherit_credentials(tmp_path: Path,
     assert "LLM_API_KEY" not in probe_env
     assert "DEPLOYMENT_TOKEN" not in probe_env
     assert probe_env["AGENT_TEAM_SAFE_MARKER"] == "preserved"
+
+
+def test_bootstrap_dependency_probe_requires_the_worker_openai_client(tmp_path: Path):
+    bootstrapper = Bootstrapper(
+        ROOT,
+        tmp_path / "missing-pi",
+        python_executable=Path(sys.executable),
+        model_endpoint="http://localhost:1/v1",
+        state_dir=tmp_path / "state",
+        service_dir=tmp_path / "service",
+    )
+    checks = []
+
+    version, dependencies = bootstrapper._check_python(checks)
+
+    assert version is not None
+    assert {"openai", "pydantic_ai", "httpx"} <= set(dependencies)
+    assert not [check for check in checks if check.status == "failed"]
 
 
 def test_bootstrap_reports_missing_git_without_installing(tmp_path: Path):

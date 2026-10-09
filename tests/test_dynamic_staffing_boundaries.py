@@ -74,10 +74,10 @@ def test_dynamic_roles_and_tasks_are_both_capped(tmp_path):
     assert len(sanitized.tasks) <= 2
 
 
-def test_worker_executor_enforces_assignment_tool_allowlist(tmp_path):
+def test_worker_executor_enforces_assignment_tool_allowlist(tmp_path, offered_tool_names):
     async def run():
         executor = WorkerToolExecutor(tmp_path, allowed_tools=["read_file"])
-        assert [item["name"] for item in executor.available_descriptions()] == ["read_file"]
+        assert await offered_tool_names(executor) == ["read_file"]
         denied = await executor.execute("write_file", {"path": "out.txt", "content": "no"})
         assert not denied.ok
         assert "not allowed" in denied.output

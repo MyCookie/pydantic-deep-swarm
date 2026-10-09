@@ -63,7 +63,7 @@ bootstrap:
    path is `AGENT_TEAM_VENV/bin/python`; set `AGENT_TEAM_PYTHON` for a
    different absolute executable or `AGENT_TEAM_VENV` for a different venv.
 4. The Python environment must already provide `pydantic`, `pydantic_ai`,
-   `httpx`, `fastapi`, `uvicorn`, `click`, `aiosqlite`, and `yaml`.
+   `openai`, `httpx`, `fastapi`, `uvicorn`, `click`, `aiosqlite`, and `yaml`.
 5. s6-overlay service supervision, including `s6-svc`, `s6-svstat`, and the
    `s6-setuidgid` command used by the service template.
 6. Writable persistent state storage outside the checkout. A mounted volume is

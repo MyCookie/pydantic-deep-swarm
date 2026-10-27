@@ -33,6 +33,7 @@ PI_VERSION_RE = re.compile(r"\b(?:v)?(\d+)\.(\d+)(?:\.(\d+))?\b")
 REQUIRED_MODULES = (
     "pydantic",
     "pydantic_ai",
+    "openai",
     "httpx",
     "fastapi",
     "uvicorn",

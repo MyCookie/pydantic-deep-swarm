@@ -8,6 +8,9 @@ import json
 import sys
 from pathlib import Path
 
+from pydantic_ai.messages import ModelResponse, ToolCallPart
+from pydantic_ai.models.function import FunctionModel
+
 from agent_team.artifacts import ArtifactStore
 from agent_team.config import Config
 from agent_team.contracts import (
@@ -47,55 +50,45 @@ def test_worker_tools_write_and_read_are_workspace_bounded(tmp_path):
     asyncio.run(run())
 
 
-def test_tool_aware_worker_executes_tool_before_structured_output():
-    class FakeModel:
-        def __init__(self):
-            self.calls = 0
+def test_tool_aware_worker_executes_tool_before_structured_output(tmp_path):
+    calls = []
 
-        async def run(self, messages):
-            self.calls += 1
-            if self.calls == 1:
-                return '{"tool_calls":[{"name":"write_file","arguments":{"path":"answer.txt","content":"done"}}]}'
-            return '{"status":"complete","summary":"wrote answer","artifacts":[{"path":"answer.txt","description":"answer","created_by":"worker"}]}'
+    def respond(messages, info):
+        calls.append(len(messages))
+        if len(calls) == 1:
+            return ModelResponse(parts=[ToolCallPart("write_file", {"path": "answer.txt", "content": "done"})])
+        assert Path(tmp_path, "answer.txt").read_text() == "done"
+        return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, {
+            "status": "complete",
+            "summary": "wrote answer",
+            "artifacts": [{"path": "answer.txt", "description": "answer", "created_by": "worker"}],
+        })])
 
     async def run():
-        from tempfile import TemporaryDirectory
-        with TemporaryDirectory() as directory:
-            executor = WorkerToolExecutor(directory)
-            agent = ToolAwareWorkerAgent(FakeModel(), "worker", executor)
-            result = await agent.run("write the answer", response_format=type("Output", (), {
-                "model_validate": classmethod(lambda cls, value: value),
-            }))
-            assert result["status"] == "complete"
-            assert Path(directory, "answer.txt").read_text() == "done"
+        executor = WorkerToolExecutor(tmp_path)
+        agent = ToolAwareWorkerAgent(FunctionModel(respond), "worker", executor)
+        result = await agent.run("write the answer", response_format=WorkerOutput)
+        assert result.status == "complete"
+        assert Path(tmp_path, "answer.txt").read_text() == "done"
+        assert len(calls) == 2
 
     asyncio.run(run())
 
 
 def test_tool_aware_worker_repairs_missing_acceptance_results(tmp_path):
-    class FakeModel:
-        def __init__(self):
-            self.run_calls = 0
-            self.structured_calls = 0
+    calls = []
 
-        async def run(self, messages):
-            self.run_calls += 1
-            return '{"status":"complete","summary":"done"}'
-
-        async def run_structured(self, messages, output_schema):
-            self.structured_calls += 1
-            return output_schema(
-                status="complete",
-                summary="done",
-                acceptance_results=[
-                    AcceptanceResult(
-                        criterion_id="a1",
-                        status="passed",
-                        evidence=["pytest: 1 passed"],
-                        verification_method="pytest",
-                    )
-                ],
-            )
+    def respond(messages, info):
+        calls.append(len(messages))
+        payload = {"status": "complete", "summary": "done"}
+        if len(calls) == 2:
+            payload["acceptance_results"] = [{
+                "criterion_id": "a1",
+                "status": "passed",
+                "evidence": ["pytest: 1 passed"],
+                "verification_method": "pytest",
+            }]
+        return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, payload)])
 
     async def run():
         executor = WorkerToolExecutor(
@@ -104,14 +97,12 @@ def test_tool_aware_worker_repairs_missing_acceptance_results(tmp_path):
                 {"id": "a1", "description": "tests pass", "verification_method": "pytest"}
             ],
         )
-        model = FakeModel()
-        result = await ToolAwareWorkerAgent(model, "worker", executor).run(
+        result = await ToolAwareWorkerAgent(FunctionModel(respond), "worker", executor).run(
             "finish",
             response_format=WorkerOutput,
         )
         assert result.acceptance_results[0].criterion_id == "a1"
-        assert model.run_calls == 1
-        assert model.structured_calls == 1
+        assert len(calls) == 2
 
     asyncio.run(run())
 

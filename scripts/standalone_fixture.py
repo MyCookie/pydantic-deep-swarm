@@ -1,7 +1,8 @@
 """Strict loopback model fixture for installed-console acceptance.
 
 This module has no dependency on the source package. It exercises actual HTTP
-catalog and completion traffic, including the worker's inner JSON tool protocol.
+catalog and completion traffic: the principal and manager text protocol, and the
+worker's native OpenAI tool calling (``tools`` / ``tool_calls`` / ``role: tool``).
 """
 
 from __future__ import annotations
@@ -24,6 +25,21 @@ BRIEF = {
     "permitted_actions": ["write_file", "read_file"],
     "desired_output": "A complete report with verified acceptance.txt",
 }
+WORKER_HEADERS = {
+    "host": "*", "content-length": "*", "accept": "application/json", "accept-encoding": "gzip, deflate",
+    "content-type": "application/json", "user-agent": "agent-team-worker", "connection": "close",
+    "authorization": "Bearer fixture-inference-key",
+}
+WORKER_OUTPUT = {
+    "status": "complete", "summary": "Created and read exact artifact",
+    "requirement_results": [{"requirement_id": "artifact", "status": "satisfied",
+                             "evidence": ["read_file verified exact acceptance.txt content"]}],
+    "acceptance_results": [{"criterion_id": "exact-bytes", "status": "passed",
+                            "verification_method": "read_file and runtime digest",
+                            "evidence": ["read_file verified exact 16 UTF-8 bytes ending in LF"]}],
+    "artifacts": [{"path": "acceptance.txt", "description": "Acceptance artifact",
+                   "created_by": "software-engineer"}],
+}
 
 
 class FixtureState:
@@ -39,16 +55,26 @@ class FixtureState:
         self.completion_release.set()
         self.catalog: object = {"data": [{"id": "fixture-model"}]}
 
-    def response(self, payload: dict) -> object:
-        assert set(payload) == {"model", "messages", "stream"}, "unexpected completion payload keys"
-        assert payload["model"] == "fixture-model"
-        assert payload["stream"] is False
-        messages = payload["messages"]
+    def response(self, payload: dict, headers: dict | None = None) -> dict:
+        """Return the complete HTTP response body for one completion request."""
+        assert payload.get("model") == "fixture-model"
+        assert payload.get("stream") is False
+        messages = payload.get("messages")
         assert isinstance(messages, list) and len(messages) >= 2
+        assert isinstance(messages[0], dict) and messages[0].get("role") == "system"
+        assert isinstance(messages[0].get("content"), str)
+        if "tools" in payload:
+            assert {name.lower(): value for name, value in (headers or {}).items()} | {
+                "content-length": "*", "host": "*"} == WORKER_HEADERS, "unexpected worker headers"
+            return self.worker_response(payload)
+        assert set(payload) == {"model", "messages", "stream"}, "unexpected completion payload keys"
         assert all(isinstance(message, dict) and set(message) == {"role", "content"}
                    and message["role"] in {"system", "user", "assistant"}
                    and isinstance(message["content"], str) for message in messages)
-        assert messages[0]["role"] == "system"
+        content = self.text_response(messages)
+        return {"choices": [{"message": {"content": content if isinstance(content, str) else json.dumps(content)}}]}
+
+    def text_response(self, messages: list[dict]) -> object:
         system = messages[0]["content"]
         if "You are the Principal:" in system:
             if "PrincipalDecision" in system:
@@ -59,39 +85,70 @@ class FixtureState:
             assert self.calls["manager"] == 1 and self.calls["worker"] == 3 and self.calls["summary"] == 0, "unexpected summary request"
             self.calls["summary"] += 1
             return "Created and verified acceptance.txt."
-        if "You are the Team Manager." in system:
-            assert "ManagerPlan" in system, "unexpected manager repair request"
-            assert self.calls["manager"] == 0, "extra manager request"
-            assert any(BRIEF["objective"] in message["content"] for message in messages[1:]), "unknown delegated scenario"
-            self.calls["manager"] += 1
-            return {"tasks": [{"task_id": "write-artifact", "role": "software-engineer",
-                               "objective": BRIEF["objective"], "requirement_ids": ["artifact"],
-                               "tools": ["write_file", "read_file"]}], "review_required": False}
-        assert "EXECUTABLE TOOLS" in system, "unexpected completion role"
+        assert "You are the Team Manager." in system, "unexpected completion role"
+        assert "ManagerPlan" in system, "unexpected manager repair request"
+        assert self.calls["manager"] == 0, "extra manager request"
+        assert any(BRIEF["objective"] in message["content"] for message in messages[1:]), "unknown delegated scenario"
+        self.calls["manager"] += 1
+        return {"tasks": [{"task_id": "write-artifact", "role": "software-engineer",
+                           "objective": BRIEF["objective"], "requirement_ids": ["artifact"],
+                           "tools": ["write_file", "read_file"]}], "review_required": False}
+
+    def worker_response(self, payload: dict) -> dict:
+        """Native tool-calling worker script: write_file, read_file, then final_result."""
+        assert set(payload) == {"model", "messages", "stream", "tools", "tool_choice"}, "unexpected worker payload keys"
+        assert payload["tool_choice"] == "required"
+        tools = payload["tools"]
+        assert all(set(tool) == {"type", "function"} and tool["type"] == "function"
+                   and isinstance(tool["function"].get("parameters"), dict) for tool in tools)
+        assert sorted(tool["function"]["name"] for tool in tools) == ["final_result", "read_file", "write_file"], \
+            "worker offered tools other than its grant"
+        messages = payload["messages"]
+        assert "EXECUTABLE TOOLS" in messages[0]["content"], "unexpected worker system prompt"
         assert self.calls["manager"] == 1 and self.calls["worker"] < 3, "unexpected worker request"
+        step = self.calls["worker"]
+        roles = ["system", "user"] + ["assistant", "tool"] * step
+        assert [message.get("role") for message in messages] == roles, "unexpected worker transcript"
+        assert BRIEF["objective"] in messages[1]["content"], "unknown worker scenario"
+        if step >= 1:
+            self.assert_tool_round(messages[2], messages[3], "call_write", "write_file")
+            written = json.loads(messages[3]["content"])
+            assert written["artifact"]["sha256"] == ARTIFACT_SHA256 and written["artifact"]["size_bytes"] == 16
+        if step >= 2:
+            self.assert_tool_round(messages[4], messages[5], "call_read", "read_file")
+            assert json.loads(messages[5]["content"])["output"] == ARTIFACT_BYTES.decode("utf-8")
         self.calls["worker"] += 1
-        results = [message for message in messages if message["role"] == "user"
-                   and message["content"].startswith("TOOL RESULTS:\n")]
-        if not results:
-            return {"tool_calls": [{"name": "write_file", "arguments": {
-                "path": "acceptance.txt", "content": ARTIFACT_BYTES.decode("utf-8")}}]}
-        for message in results:
-            decoded = json.loads(message["content"].split("\n", 1)[1])
-            assert len(decoded) == 1 and decoded[0]["ok"] is True
-        if len(results) == 1:
-            assert json.loads(results[0]["content"].split("\n", 1)[1])[0]["tool"] == "write_file"
-            return {"tool_calls": [{"name": "read_file", "arguments": {"path": "acceptance.txt"}}]}
-        assert len(results) == 2
-        read = json.loads(results[1]["content"].split("\n", 1)[1])[0]
-        assert read["tool"] == "read_file" and read["output"] == ARTIFACT_BYTES.decode("utf-8")
-        return {"status": "complete", "summary": "Created and read exact artifact",
-                "requirement_results": [{"requirement_id": "artifact", "status": "satisfied",
-                                         "evidence": ["read_file verified exact acceptance.txt content"]}],
-                "acceptance_results": [{"criterion_id": "exact-bytes", "status": "passed",
-                                        "verification_method": "read_file and runtime digest",
-                                        "evidence": ["read_file verified exact 16 UTF-8 bytes ending in LF"]}],
-                "artifacts": [{"path": "acceptance.txt", "description": "Acceptance artifact",
-                               "created_by": "software-engineer"}]}
+        if step == 0:
+            call = ("call_write", "write_file", {"path": "acceptance.txt", "content": ARTIFACT_BYTES.decode("utf-8")})
+        elif step == 1:
+            call = ("call_read", "read_file", {"path": "acceptance.txt"})
+        else:
+            call = ("call_final", "final_result", WORKER_OUTPUT)
+        call_id, name, arguments = call
+        return {
+            "id": f"chatcmpl-fixture-worker-{step}",
+            "object": "chat.completion",
+            "created": 1700000000,
+            "model": "fixture-model",
+            "choices": [{
+                "index": 0,
+                "finish_reason": "tool_calls",
+                "message": {"role": "assistant", "content": None, "tool_calls": [{
+                    "id": call_id, "type": "function",
+                    "function": {"name": name, "arguments": json.dumps(arguments)},
+                }]},
+            }],
+        }
+
+    @staticmethod
+    def assert_tool_round(assistant: dict, result: dict, call_id: str, name: str) -> None:
+        calls = assistant.get("tool_calls")
+        assert isinstance(calls, list) and len(calls) == 1, "expected one native tool call per round"
+        assert calls[0]["id"] == call_id and calls[0]["type"] == "function"
+        assert calls[0]["function"]["name"] == name
+        assert set(result) == {"role", "tool_call_id", "content"} and result["tool_call_id"] == call_id
+        decoded = json.loads(result["content"])
+        assert decoded["tool"] == name and decoded["ok"] is True, "tool result was not a success"
 
 
 @contextmanager
@@ -136,9 +193,7 @@ def model_server():
                 payload = json.loads(self.rfile.read(size))
                 state.completion_entered.set()
                 assert state.completion_release.wait(15), "completion barrier timeout"
-                response = state.response(payload)
-                content = response if isinstance(response, str) else json.dumps(response)
-                self.send(200, {"choices": [{"message": {"content": content}}]})
+                self.send(200, state.response(payload, dict(self.headers)))
             except Exception as error:
                 state.errors.append(str(error))
                 self.send(500, {"error": "fixture assertion failed"})

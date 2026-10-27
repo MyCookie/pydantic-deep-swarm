@@ -53,9 +53,9 @@ The controller provisions an exact-revision fresh clone, runs the installed
 suite, builds and installs a same-revision wheel using hash-locked exported
 runtime dependencies, reproduces the historical path escape independently, and
 exercises optional-asset absence. Its strict loopback fixture runs actual
-catalog/completion HTTP, typed direct/delegated requests, real worker tools, exact
-artifact-byte verification, persisted report restart, signal exits, and
-nonmutating fresh/busy/stopped doctor checks. Reports retain command logs,
+catalog/completion HTTP, typed direct/delegated requests, real worker tools over
+native OpenAI tool calls, exact artifact-byte verification, persisted report
+restart, signal exits, and nonmutating fresh/busy/stopped doctor checks. Reports retain command logs,
 versions, lock/export/wheel hashes, origins, filesystem proofs, and process events.
 The fixture proves deterministic runtime behavior; actual inference and installed
 deployment integrations retain their separate explicitly selected lanes.
@@ -71,6 +71,7 @@ The suite is organized around observable boundaries rather than model internals.
 | Engine acceptance | Planning, dependencies, review, artifacts, failure, timeout, and cleanup | `tests/test_end_to_end_acceptance.py`, `tests/test_acceptance_boundaries.py` |
 | HTTP boundary | Sessions, messages, reports, cancellation, readiness, and serialization | `tests/test_end_to_end_acceptance.py`, `tests/test_tdd_swarm.py` |
 | Worker safety | Workspace bounds, tool grants, turn limits, process ownership, and credential isolation | `tests/test_worker_capabilities.py`, `tests/test_worker_turn_limits.py` |
+| Worker loop | Native tool calling, structured output retries, and worker request auth through a scripted `FunctionModel` and a fake OpenAI-compatible server | `tests/test_pydantic_ai_worker.py` |
 | Persistence/memory | Durable sessions, scopes, knowledge, restart recovery, and concurrent safety | `tests/test_process_model.py`, `tests/test_memory_scope_boundaries.py` |
 | GitOps/Pi | Repository boundary, provenance, manifest integrity, exact revision, and rollback | `tests/test_gitops_boundary.py`, `tests/test_pi_reconciler.py` |
 | Publication integrity | Documentation layout, non-asserting test detection, and machine-specific literal scans | `tests/test_documentation_layout.py`, `tests/test_test_suite_integrity.py` |

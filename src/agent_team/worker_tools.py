@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import json
 import os
@@ -12,6 +11,8 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
+from pydantic_ai import Agent, ModelRequestNode, ModelRetry, RunContext, Tool
+from pydantic_ai.usage import UsageLimits
 
 from .artifacts import ArtifactStore
 from .contracts import ArtifactResult, WORKER_TOOL_NAMES
@@ -91,18 +92,6 @@ class WorkerToolExecutor:
         if not resolved.is_relative_to(self.workspace):
             raise ValueError("path escapes the worker workspace")
         return resolved
-
-    @classmethod
-    def descriptions(cls) -> list[dict[str, Any]]:
-        return [
-            {"name": "list_files", "arguments": {"path": "relative directory, default ."}},
-            {"name": "read_file", "arguments": {"path": "relative file path", "max_chars": "optional integer"}},
-            {"name": "write_file", "arguments": {"path": "relative file path", "content": "full file content", "description": "optional"}},
-        ]
-
-    def available_descriptions(self) -> list[dict[str, Any]]:
-        """Return only tools granted to this worker assignment."""
-        return [item for item in self.descriptions() if item["name"] in self.allowed_tools]
 
     async def execute(self, name: str, arguments: dict[str, Any]) -> ToolResult:
         try:
@@ -185,8 +174,13 @@ class WorkerToolExecutor:
             self.artifact_store.write_manifest(self.project_id, [artifact])
         return ToolResult("write_file", True, f"wrote {artifact.path}", artifact)
 
+
+class _WorkerStopped(Exception):
+    """A worker limit ended the run before a final result."""
+
+
 class ToolAwareWorkerAgent:
-    """Worker agent loop that can execute bounded tools before final output."""
+    """Bounded worker loop on a Pydantic AI agent with native tool calling."""
 
     def __init__(
         self,
@@ -212,6 +206,7 @@ class ToolAwareWorkerAgent:
                 before_turn=before_turn,
                 on_turn=on_turn,
             )
+        self._calls_used = 0
 
     @property
     def turn_usage(self) -> WorkerTurnUsage:
@@ -219,83 +214,95 @@ class ToolAwareWorkerAgent:
         return self.turn_budget.usage
 
     async def run(self, user_message: str, response_format: type[BaseModel] | None = None) -> Any:
-        tool_prompt = (
-            "\n\nEXECUTABLE TOOLS (use JSON only when needed):\n"
-            f"{json.dumps(self.executor.available_descriptions())}\n"
-            'To call tools, return {"tool_calls":[{"name":"read_file","arguments":{"path":"..."}}]}. '
-            "After receiving TOOL RESULTS, return the requested final output."
+        tools = self._tools()
+        granted = ", ".join(tool.name for tool in tools) or "none"
+        instructions = (
+            f"{self.system_prompt}\n\nEXECUTABLE TOOLS: {granted}\n"
+            "Call tools only through the native tool-calling interface supplied with this request, "
+            "then return the requested final output."
         )
-        messages: list[dict[str, str]] = [
-            {"role": "system", "content": self.system_prompt + tool_prompt},
-            {"role": "user", "content": user_message},
+        agent = Agent(
+            self.model,
+            output_type=response_format or str,
+            instructions=instructions,
+            tools=tools,
+            retries=1,
+        )
+        if response_format is not None and self.acceptance_criteria:
+            agent.output_validator(self._require_acceptance_ids)
+        self._calls_used = 0
+        try:
+            async with agent.iter(user_message, usage_limits=UsageLimits(request_limit=None)) as run:
+                node = run.next_node
+                while not Agent.is_end_node(node):
+                    if isinstance(node, ModelRequestNode):
+                        try:
+                            await self.turn_budget.consume("model")
+                        except WorkerTimeoutError as exc:
+                            raise _WorkerStopped(str(exc)) from exc
+                    node = await run.next(node)
+                return run.result.output
+        except _WorkerStopped as stopped:
+            return self._partial_result(response_format, str(stopped))
+
+    def _require_acceptance_ids(self, ctx: RunContext[Any], output: Any) -> Any:
+        """Ask once for omitted acceptance IDs; afterwards accept the output as-is."""
+        missing_ids = self._missing_acceptance_ids(output)
+        if missing_ids and ctx.retry == 0:
+            raise ModelRetry(
+                "The parsed response omitted required acceptance criterion IDs: "
+                + ", ".join(missing_ids)
+                + ". Return one AcceptanceResult for every criterion. Preserve facts proven by tool "
+                "results, include exact acceptance criterion IDs, and mark anything not proven as "
+                "not_verified or unresolved. Required criteria:\n"
+                + json.dumps(self.acceptance_criteria, indent=2)
+            )
+        return output
+
+    def _missing_acceptance_ids(self, output: Any) -> list[str]:
+        required = [str(item.get("id") or "") for item in self.acceptance_criteria]
+        present = {
+            str(getattr(item, "criterion_id", ""))
+            for item in (getattr(output, "acceptance_results", None) or [])
+        }
+        return [criterion_id for criterion_id in required if criterion_id and criterion_id not in present]
+
+    def _tools(self) -> list[Tool]:
+        async def list_files(path: str = ".") -> dict[str, Any]:
+            """List files under a workspace-relative directory."""
+            return await self._call_tool("list_files", {"path": path})
+
+        async def read_file(path: str, max_chars: int | None = None) -> dict[str, Any]:
+            """Read a workspace-relative UTF-8 text file."""
+            return await self._call_tool("read_file", {"path": path, "max_chars": max_chars})
+
+        async def write_file(path: str, content: str, description: str | None = None) -> dict[str, Any]:
+            """Atomically write the full content of a workspace-relative file."""
+            return await self._call_tool(
+                "write_file", {"path": path, "content": content, "description": description}
+            )
+
+        functions = {"list_files": list_files, "read_file": read_file, "write_file": write_file}
+        return [
+            Tool(function, sequential=True)
+            for name, function in functions.items()
+            if name in self.executor.allowed_tools
         ]
-        calls_used = 0
-        while True:
-            try:
-                await self.turn_budget.consume("model")
-            except WorkerTimeoutError as exc:
-                return self._partial_result(response_format, str(exc))
-            raw = await self.model.run(messages)
-            parsed = self._parse_object(raw)
-            calls = parsed.get("tool_calls") if isinstance(parsed, dict) else None
-            if calls:
-                if not isinstance(calls, list):
-                    return self._partial_result(response_format, "Worker returned an invalid tool-call list.")
-                if calls_used >= self.max_tool_calls:
-                    return self._partial_result(
-                        response_format,
-                        f"Worker tool-call limit of {self.max_tool_calls} reached before a final result.",
-                    )
-                messages.append({"role": "assistant", "content": str(raw)})
-                results = []
-                limit_reason: str | None = None
-                for call in calls:
-                    if calls_used >= self.max_tool_calls:
-                        limit_reason = (
-                            f"Worker tool-call limit of {self.max_tool_calls} reached before a final result."
-                        )
-                        break
-                    try:
-                        await self.turn_budget.consume("tool")
-                    except WorkerTimeoutError as exc:
-                        limit_reason = str(exc)
-                        break
-                    calls_used += 1
-                    if not isinstance(call, dict):
-                        results.append({"tool": "", "ok": False, "output": "Tool call must be an object"})
-                        continue
-                    result = await self.executor.execute(str(call.get("name") or ""), call.get("arguments") or {})
-                    results.append(result.as_dict())
-                if results:
-                    messages.append({"role": "user", "content": "TOOL RESULTS:\n" + json.dumps(results, ensure_ascii=False)})
-                if limit_reason is not None:
-                    return self._partial_result(response_format, limit_reason)
-                continue
-            if response_format is None:
-                return str(raw or "")
-            try:
-                parsed_output = self._parse_model(raw, response_format)
-            except Exception as parse_error:
-                repaired = await self._repair_output(
-                    messages,
-                    response_format,
-                    "The previous response was not valid for the required schema.",
-                )
-                if repaired is not None:
-                    return repaired
-                raise parse_error
-            missing_ids = self._missing_acceptance_ids(parsed_output)
-            if missing_ids:
-                repaired = await self._repair_output(
-                    messages,
-                    response_format,
-                    "The parsed response omitted required acceptance criterion IDs: "
-                    + ", ".join(missing_ids)
-                    + ". Return one AcceptanceResult for every criterion.",
-                )
-                if repaired is not None:
-                    return repaired
-            return parsed_output
+
+    async def _call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        # Tools are sequential barriers, so this check-then-count cannot race
+        # within a batch of tool calls from one model response.
+        if self._calls_used >= self.max_tool_calls:
+            raise _WorkerStopped(
+                f"Worker tool-call limit of {self.max_tool_calls} reached before a final result."
+            )
+        try:
+            await self.turn_budget.consume("tool")
+        except WorkerTimeoutError as exc:
+            raise _WorkerStopped(str(exc)) from exc
+        self._calls_used += 1
+        result = await self.executor.execute(name, arguments)
+        return result.as_dict()
 
     def _partial_result(self, response_format: type[BaseModel] | None, reason: str) -> Any:
         """Return a schema-shaped partial result without exposing model chatter."""
@@ -313,71 +320,4 @@ class ToolAwareWorkerAgent:
         }
         if response_format is None:
             return payload["summary"]
-        validator = getattr(response_format, "model_validate", None)
-        if callable(validator):
-            return validator(payload)
-        return payload
-
-    def _missing_acceptance_ids(self, output: Any) -> list[str]:
-        required = [str(item.get("id") or "") for item in self.acceptance_criteria]
-        if not required:
-            return []
-        present = {
-            str(getattr(item, "criterion_id", ""))
-            for item in (getattr(output, "acceptance_results", None) or [])
-        }
-        return [criterion_id for criterion_id in required if criterion_id and criterion_id not in present]
-
-    async def _repair_output(
-        self,
-        messages: list[dict[str, str]],
-        response_format: type[BaseModel],
-        reason: str,
-    ) -> Any | None:
-        run_structured = getattr(self.model, "run_structured", None)
-        if not callable(run_structured):
-            return None
-        repair_messages = [
-            *messages,
-            {
-                "role": "user",
-                "content": (
-                    f"{reason} Return only valid JSON matching the requested {response_format.__name__} schema. "
-                    "Preserve facts proven by tool results, include exact acceptance criterion IDs, and mark "
-                    "anything not proven as not_verified or unresolved. Required criteria:\n"
-                    f"{json.dumps(self.acceptance_criteria, indent=2)}"
-                ),
-            },
-        ]
-        try:
-            repaired = await run_structured(repair_messages, response_format)
-            return repaired if isinstance(repaired, response_format) else response_format.model_validate(repaired)
-        except Exception:
-            return None
-
-    @staticmethod
-    def _parse_object(raw: Any) -> dict[str, Any] | None:
-        if not isinstance(raw, str):
-            return raw if isinstance(raw, dict) else None
-        text = raw.strip().strip("`")
-        try:
-            value = json.loads(text)
-            return value if isinstance(value, dict) else None
-        except json.JSONDecodeError:
-            start, end = text.find("{"), text.rfind("}")
-            if start >= 0 and end > start:
-                try:
-                    value = json.loads(text[start : end + 1])
-                    return value if isinstance(value, dict) else None
-                except json.JSONDecodeError:
-                    return None
-            return None
-
-    @classmethod
-    def _parse_model(cls, raw: Any, output_schema: type[BaseModel]) -> BaseModel:
-        if isinstance(raw, output_schema):
-            return raw
-        parsed = cls._parse_object(raw)
-        if parsed is not None:
-            return output_schema.model_validate(parsed)
-        return output_schema.model_validate_json(str(raw))
+        return response_format.model_validate(payload)

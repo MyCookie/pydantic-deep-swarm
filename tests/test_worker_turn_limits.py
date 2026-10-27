@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-import json
 
 import pytest
+from pydantic_ai.messages import ModelResponse, ToolCallPart
+from pydantic_ai.models.function import FunctionModel
 
 from agent_team.config import Config, MemoryConfig, ModelConfig, RuntimeConfig, ToolsConfig
 from agent_team.contracts import ManagerPlan, PrincipalDecision, ProjectBrief, Requirement, WorkerOutput, WorkerTaskSpec
@@ -15,23 +16,26 @@ from agent_team.runtime.lifecycle import ProcessManager, TaskRegistry
 from agent_team.worker_tools import ToolAwareWorkerAgent, WorkerToolExecutor
 
 
-class RepeatingToolModel:
-    """Model that never produces a final answer."""
+class RepeatingToolModel(FunctionModel):
+    """Model that never produces a final answer, only native tool calls."""
 
     def __init__(self, count: int = 1):
+        super().__init__(self._respond)
         self.calls = 0
         self.count = count
 
-    async def run(self, messages):
+    def _respond(self, messages, info):
         self.calls += 1
-        calls = [
-            {
-                "name": "write_file",
-                "arguments": {"path": f"attempt-{self.calls}.txt", "content": "partial"},
-            }
-            for _ in range(self.count)
-        ]
-        return json.dumps({"tool_calls": calls})
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    "write_file",
+                    {"path": f"attempt-{self.calls}.txt", "content": "partial"},
+                    tool_call_id=f"call-{self.calls}-{index}",
+                )
+                for index in range(self.count)
+            ]
+        )
 
 
 @pytest.mark.asyncio

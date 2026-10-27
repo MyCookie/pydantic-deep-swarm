@@ -15,15 +15,13 @@ class Model:
         return "{}"
 
 
-def test_hermes_native_capabilities_are_disabled_and_not_exposed(tmp_path):
+def test_hermes_native_capabilities_are_disabled_and_not_exposed(tmp_path, offered_tool_names):
     executor = WorkerToolExecutor(tmp_path)
 
     assert HERMES_NATIVE_CAPABILITIES == frozenset()
     assert ToolsConfig().skills is False
     assert ToolsConfig().mcp is False
-    assert {item["name"] for item in executor.available_descriptions()} == {
-        "list_files", "read_file", "write_file"
-    }
+    assert asyncio.run(offered_tool_names(executor)) == ["list_files", "read_file", "write_file"]
 
     async def run_denied_calls():
         for name in ("terminal", "load_skill", "mcp_call", "connector_call"):
@@ -61,14 +59,12 @@ def test_sensitive_environment_scrubber_preserves_only_safe_values(tmp_path, mon
     assert environment["AGENT_TEAM_SAFE_MARKER"] == "preserved"
 
 
-def test_worker_command_execution_is_not_exposed_even_when_requested(tmp_path):
+def test_worker_command_execution_is_not_exposed_even_when_requested(tmp_path, offered_tool_names):
     executor = WorkerToolExecutor(
         tmp_path,
     )
 
-    assert "run_command" not in {
-        item["name"] for item in executor.available_descriptions()
-    }
+    assert "run_command" not in asyncio.run(offered_tool_names(executor))
 
     result = asyncio.run(
         executor.execute(

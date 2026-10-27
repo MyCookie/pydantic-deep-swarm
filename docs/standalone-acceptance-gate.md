@@ -67,24 +67,31 @@ Run a versioned fixture server at `http://127.0.0.1:<allocated-port>/v1`. It imp
 
 Catalog scenarios include singleton; duplicate singleton; empty; multiple distinct IDs; explicit present/missing IDs; malformed JSON/object/list/ID; empty/nonstring/reserved `auto` ID; HTTP/auth denial; connection/timeout; and barrier-controlled blocked response. Count one catalog request per distinct trailing-slash-normalized effective endpoint **per command observation**, not once across the entire smoke sequence. Startup and doctor perform catalog checks without inference. Test principal/manager/worker and all-three-switch-enabled curator; inactive curator is neither probed nor required. Neither API sentinel nor inference sentinel may appear on discovery requests.
 
-The production client is [SimpleChatModel](../src/agent_team/models/http_model.py). The fixture must validate advertised exact `model`, a list of role/content `messages`, and `stream: false`. Inference Bearer auth contains only the fixture LLM sentinel when selected; the Agent Team API sentinel is accepted only by Agent Team probes/requests. Structured JSON schema instructions appear inside system content; do not require native OpenAI `response_format` or native tool-call fields that this client does not send.
+The principal, manager and curator client is [SimpleChatModel](../src/agent_team/models/http_model.py). For those roles the fixture must validate advertised exact `model`, a list of role/content `messages`, and `stream: false`. Inference Bearer auth contains only the fixture LLM sentinel when selected; the Agent Team API sentinel is accepted only by Agent Team probes/requests. Structured JSON schema instructions appear inside system content; do not require native OpenAI `response_format` or native tool-call fields on principal, manager or curator requests, which this client does not send.
 
-The response envelope is `{"choices":[{"message":{"content":"<text>"}}]}`. Content is a string: serialize typed `PrincipalDecision`, `ManagerPlan`, and `WorkerOutput` fixture payloads into that string. A worker tool iteration's decoded `choices[0].message.content` string is `{"tool_calls":[{"name":"write_file","arguments":{"path":"acceptance.txt","content":"standalone gate\n"}}]}`. Its inner JSON uses one `\n` escape for a trailing LF; outer response serialization escapes that backslash again as `\\n`. `SimpleChatModel` decodes the outer HTTP JSON, then `ToolAwareWorkerAgent` parses the inner JSON before the tool writes UTF-8 bytes. Construct the nested response by serialization, for example:
+The principal, manager and curator response envelope is `{"choices":[{"message":{"content":"<text>"}}]}`. Content is a string: serialize typed `PrincipalDecision` and `ManagerPlan` fixture payloads (and curator output when the curator is enabled) into that string.
+
+**Worker wire format (amends the #8 contract under [issue #14](https://github.com/MyCookie/pydantic-deep-swarm/issues/14)).** Workers no longer use a JSON-in-text tool protocol. The worker client is a Pydantic AI `OpenAIChatModel` built by [worker_model.py](../src/agent_team/models/worker_model.py), and it speaks native OpenAI tool calling. Endpoints without native tool-call support cannot serve workers. A worker request carries exactly `model`, `messages`, `stream: false`, `tools`, and `tool_choice: "required"`. `tools` lists one `{"type":"function","function":{...}}` entry per tool granted to the assignment (`list_files`, `read_file`, `write_file`), and no ungranted tool, plus the structured-output tool `final_result`, whose parameters are the `WorkerOutput` JSON schema. The system message contains the role prompt and an `EXECUTABLE TOOLS` section naming the granted tools. Bearer auth follows the same rule as the other roles: `Authorization: Bearer` carries only the fixture LLM sentinel when `LLM_API_KEY` is set and is absent otherwise. Every worker request carries exactly this header set: `Host` from the configured base URL, `Accept: application/json`, `Accept-Encoding: gzip, deflate`, `Content-Type: application/json`, `User-Agent: agent-team-worker`, `Connection: close`, the computed `Content-Length`, and that conditional `Authorization`. The worker client refuses redirects, and `Authorization` is bound to the configured origin: it is added only when the request's scheme, host and port (with default ports filled in) match the configured base URL's, so no other host can receive the key. No `OPENAI_*` environment variable, including `OPENAI_CUSTOM_HEADERS`, changes the worker base URL, key or headers. The worker client sends one request per completion with no retries.
+
+A worker tool iteration's response is a complete chat-completion object whose `choices[0].message` is `{"role":"assistant","content":null,"tool_calls":[{"id":"call_write","type":"function","function":{"name":"write_file","arguments":"<JSON string>"}}]}`, with `finish_reason: "tool_calls"` and the `id`, `object`, `created`, `model` and `index` fields present. `arguments` is a JSON string: serialize the argument object once, so a trailing LF is one `\n` escape inside that string and the outer HTTP body escapes it again as `\\n`. The runtime decodes the HTTP JSON, then the `arguments` string, before the tool writes UTF-8 bytes. Construct the nested response by serialization, for example:
 
 ```python
 import json
 
 artifact_bytes = bytes.fromhex("7374616e64616c6f6e6520676174650a")
-payload = {"tool_calls": [{"name": "write_file", "arguments": {
-    "path": "acceptance.txt", "content": artifact_bytes.decode("utf-8")
-}}]}
-inner = json.dumps(payload)
-outer = json.dumps({"choices": [{"message": {"content": inner}}]})
-decoded = json.loads(json.loads(outer)["choices"][0]["message"]["content"])
-assert decoded["tool_calls"][0]["arguments"]["content"].encode("utf-8") == artifact_bytes
+arguments = json.dumps({"path": "acceptance.txt", "content": artifact_bytes.decode("utf-8")})
+message = {"role": "assistant", "content": None, "tool_calls": [{
+    "id": "call_write", "type": "function",
+    "function": {"name": "write_file", "arguments": arguments},
+}]}
+outer = json.dumps({"id": "chatcmpl-fixture-worker-0", "object": "chat.completion", "created": 1700000000,
+                    "model": "fixture-model",
+                    "choices": [{"index": 0, "finish_reason": "tool_calls", "message": message}]})
+decoded = json.loads(json.loads(outer)["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"])
+assert decoded["content"].encode("utf-8") == artifact_bytes
 ```
 
-The next request contains a user `TOOL RESULTS` message. This is the existing worker content protocol, not native OpenAI tool calls.
+The next worker request repeats the transcript and appends the assistant message carrying that `tool_calls` entry, then a `{"role":"tool","tool_call_id":"call_write","content":"<JSON string>"}` message. Its decoded content is the executor result `{"tool":"write_file","ok":true,"output":"wrote acceptance.txt","artifact":{...}}`, including the runtime SHA-256 and size. The canonical worker script is `write_file`, then `read_file` (whose `role: "tool"` result output must equal the artifact text), then a `final_result` tool call whose arguments are the `WorkerOutput`. That is three worker requests. The fixture asserts the exact role sequence, call IDs and tool names at each step.
 
 Use an explicit finite-state request script keyed by scenario marker, semantic schema/prompt, role, and task. Model ID alone cannot identify roles when they share one model. Independent workers may interleave only as explicitly allowed by their per-task state machines. Unknown requests fail the fixture and the harness; missing or extra expected calls fail even if a runtime fallback produces a superficially successful response. Never return a generic success for unexpected traffic. Assert the happy path uses the intended requests and valid schemas rather than fallback intake, staffing, report repair, or rendering.
 

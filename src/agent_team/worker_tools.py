@@ -12,6 +12,7 @@ from typing import Any
 
 from pydantic import BaseModel
 from pydantic_ai import Agent, ModelRequestNode, ModelRetry, RunContext, Tool
+from pydantic_ai.models import Model
 from pydantic_ai.usage import UsageLimits
 
 from .artifacts import ArtifactStore
@@ -180,11 +181,19 @@ class _WorkerStopped(Exception):
 
 
 class ToolAwareWorkerAgent:
-    """Bounded worker loop on a Pydantic AI agent with native tool calling."""
+    """Bounded worker loop on a Pydantic AI agent with native tool calling.
+
+    ``model`` must be a Pydantic AI ``Model``, normally from
+    :func:`agent_team.models.worker_model.create_worker_model`. Anything else,
+    including any model name string, raises ``TypeError``. A provider-prefixed
+    name such as ``openai:gpt-4o`` would make Pydantic AI build its own provider
+    from ``OPENAI_*`` environment variables, bypassing that factory's endpoint,
+    credential and header isolation.
+    """
 
     def __init__(
         self,
-        model: Any,
+        model: Model,
         system_prompt: str,
         executor: WorkerToolExecutor,
         max_tool_calls: int | None = None,
@@ -193,6 +202,8 @@ class ToolAwareWorkerAgent:
         before_turn: Any | None = None,
         on_turn: Any | None = None,
     ):
+        if not isinstance(model, Model):
+            raise TypeError(f"Worker model must be a Pydantic AI Model, not {type(model).__name__}")
         self.model = model
         self.system_prompt = system_prompt
         self.executor = executor

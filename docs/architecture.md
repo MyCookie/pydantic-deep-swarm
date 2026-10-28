@@ -170,12 +170,15 @@ Every worker model request and every executed tool call consumes one turn from
 the worker's budget, and tool calls also count toward `tools.max_tool_calls`.
 Tool calls run one at a time, so a batch of calls in one response cannot pass
 either limit. Reaching a limit ends the worker with a schema-shaped `partial`
-result naming the limit. Invalid structured output gets one retry before the
-worker fails. Omitted acceptance-criterion IDs get one retry request; output
-still missing them is accepted as returned. A call to an unknown tool name, or
-with invalid arguments, runs nothing: it returns to the model as a retry prompt
-and costs a model turn, not a tool call. A second consecutive invalid call to
-the same tool raises, and the worker is marked failed.
+result naming the limit. Invalid structured output and omitted
+acceptance-criterion IDs share one output retry; invalid output after it is
+used fails the worker. Omitted IDs get a retry request only if a schema failure
+has not already used it, and output still missing them is accepted as returned.
+A call to an unknown tool name, or with invalid arguments, runs nothing: it
+returns to the model as a retry prompt and costs a model turn, not a tool call.
+Pydantic AI's per-tool retry counter resets only when that same tool succeeds,
+so a second invalid call to a tool raises even if other tools succeeded in
+between, and the worker is marked failed.
 
 A `ManagerPlan` is executed as dependency-ready layers. Independent tasks in one
 layer run concurrently; dependent tasks receive compact summaries from completed

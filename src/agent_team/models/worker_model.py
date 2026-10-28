@@ -72,8 +72,6 @@ def create_worker_model(base_url: str, model_name: str, api_key: str = "") -> Op
     SDK retries are disabled so every request is one counted worker turn.
     """
 
-    base_url = base_url.rstrip("/")
-
     async def restrict_headers(request) -> None:
         for name in list(request.headers):
             del request.headers[name]

@@ -108,7 +108,7 @@ def diagnose(*, config_file=None,state_dir=None,workspace_dir=None,repo_root=Non
         add("repository_revision","failed","repository_probe_failed")
     dependencies={}
     try:
-        for name in ("pydantic","pydantic-ai","httpx","fastapi","uvicorn","click","aiosqlite","pyyaml"):
+        for name in ("pydantic","pydantic-ai","openai","httpx","fastapi","uvicorn","click","aiosqlite","pyyaml"):
             remaining()
             dependencies[name]=importlib.metadata.version(name)
         compatible=sys.version_info>=(3,11)

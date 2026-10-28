@@ -16044,6 +16044,53 @@
       }
     },
     {
+      "id": "doctor_contract.dependency_evidence_reports_openai_version.8453b3f7c66e",
+      "contract": "6",
+      "nodes": [
+        "tests/test_doctor_contract.py::test_dependency_evidence_reports_openai_version"
+      ],
+      "setup": {
+        "test": "test_dependency_evidence_reports_openai_version",
+        "fixture_arguments": [
+          "fixture"
+        ],
+        "parameters": {},
+        "isolation": "Controlled fixture/environment or mock transport; inputs remain under pytest temporary roots."
+      },
+      "operation": {
+        "entry_point": "tests/test_doctor_contract.py::test_dependency_evidence_reports_openai_version",
+        "called_functions": [
+          "(root / 'uv.lock').read_text",
+          "Path",
+          "Path(__file__).resolve",
+          "diagnose",
+          "next",
+          "tomllib.loads"
+        ]
+      },
+      "expected": {
+        "assertions": [
+          "check['status'] == 'passed'",
+          "check['evidence']['versions']['openai'] == locked"
+        ],
+        "expected_exception_checks": [],
+        "source_sha256": "dfb8db8f589a5600a090b54f967923fd987b82bed912df46aad206ccd87e7745"
+      },
+      "allowed_fs_changes": {
+        "fixture_setup_and_teardown": "pytest temporary roots",
+        "production_operations": {
+          "diagnose": []
+        },
+        "scope": "Explicit assertion predicates above govern operation-specific changes; manifests include fixture preparation."
+      },
+      "deadline_seconds": 20,
+      "cleanup": {
+        "recorder": "Restore operation hooks and process alarm",
+        "fixtures": "pytest restores monkeypatches and controls temporary directory retention",
+        "explicit_cleanup_calls": []
+      }
+    },
+    {
       "id": "doctor_contract.unwritable_path_has_no_write_probe.e78a7e42585e",
       "contract": "6",
       "nodes": [
@@ -18128,6 +18175,7 @@
     "doctor_contract.readiness_auth_failure_observation_only_unless_s6.f469aa1bbf40",
     "doctor_contract.readiness_auth_failure_observation_only_unless_s6.1c6a3a668156",
     "doctor_contract.dependency_absence_and_revision_mismatch.705a4fa16d6b",
+    "doctor_contract.dependency_evidence_reports_openai_version.8453b3f7c66e",
     "doctor_contract.unwritable_path_has_no_write_probe.e78a7e42585e",
     "doctor_contract.doctor_subprocess_credentials_scrubbed.df15dc1f4184",
     "doctor_contract.cli_and_report_scrub_known_secret_in_structured_evidence.775a96c3b2c8",

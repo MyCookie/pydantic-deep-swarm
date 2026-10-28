@@ -1,8 +1,9 @@
 """Strict loopback model fixture for installed-console acceptance.
 
-This module has no dependency on the source package. It exercises actual HTTP
-catalog and completion traffic: the principal and manager text protocol, and the
-worker's native OpenAI tool calling (``tools`` / ``tool_calls`` / ``role: tool``).
+It exercises actual HTTP catalog and completion traffic: the principal and
+manager text protocol, and the worker's native OpenAI tool calling (``tools`` /
+``tool_calls`` / ``role: tool``). Its only import from the installed package is
+the ``WorkerOutput`` contract, the oracle for the worker's ``final_result`` schema.
 """
 
 from __future__ import annotations
@@ -13,6 +14,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import threading
 import time
+
+from agent_team.contracts import WorkerOutput
 
 
 ARTIFACT_BYTES = b"standalone gate\n"
@@ -42,6 +45,24 @@ WORKER_OUTPUT = {
 }
 
 
+def tool_schema(value):
+    """Tool-parameter form of a Pydantic JSON schema: no titles, every object closed."""
+    if isinstance(value, list):
+        return [tool_schema(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    # A string title is schema metadata; a property named "title" maps to a dict and stays.
+    result = {key: tool_schema(item) for key, item in value.items() if not (key == "title" and isinstance(item, str))}
+    if result.get("type") == "object":
+        result["additionalProperties"] = False
+    return result
+
+
+# The model docstring travels as the tool description, not inside its parameters.
+WORKER_OUTPUT_PARAMETERS = tool_schema(WorkerOutput.model_json_schema())
+WORKER_OUTPUT_PARAMETERS.pop("description", None)
+
+
 class FixtureState:
     def __init__(self):
         self.calls = Counter()
@@ -55,7 +76,7 @@ class FixtureState:
         self.completion_release.set()
         self.catalog: object = {"data": [{"id": "fixture-model"}]}
 
-    def response(self, payload: dict, headers: dict | None = None) -> dict:
+    def response(self, payload: dict, headers: list[tuple[str, str]] | None = None) -> dict:
         """Return the complete HTTP response body for one completion request."""
         assert payload.get("model") == "fixture-model"
         assert payload.get("stream") is False
@@ -64,8 +85,9 @@ class FixtureState:
         assert isinstance(messages[0], dict) and messages[0].get("role") == "system"
         assert isinstance(messages[0].get("content"), str)
         if "tools" in payload:
-            assert {name.lower(): value for name, value in (headers or {}).items()} | {
-                "content-length": "*", "host": "*"} == WORKER_HEADERS, "unexpected worker headers"
+            # A list, not a dict, so a repeated header line (e.g. two Authorization) is rejected.
+            assert sorted((name.lower(), "*" if name.lower() in {"content-length", "host"} else value)
+                          for name, value in headers or []) == sorted(WORKER_HEADERS.items()), "unexpected worker headers"
             return self.worker_response(payload)
         assert set(payload) == {"model", "messages", "stream"}, "unexpected completion payload keys"
         assert all(isinstance(message, dict) and set(message) == {"role", "content"}
@@ -103,6 +125,8 @@ class FixtureState:
                    and isinstance(tool["function"].get("parameters"), dict) for tool in tools)
         assert sorted(tool["function"]["name"] for tool in tools) == ["final_result", "read_file", "write_file"], \
             "worker offered tools other than its grant"
+        final_result = next(tool["function"] for tool in tools if tool["function"]["name"] == "final_result")
+        assert final_result["parameters"] == WORKER_OUTPUT_PARAMETERS, "final_result parameters are not the WorkerOutput schema"
         messages = payload["messages"]
         assert "EXECUTABLE TOOLS" in messages[0]["content"], "unexpected worker system prompt"
         assert self.calls["manager"] == 1 and self.calls["worker"] < 3, "unexpected worker request"
@@ -193,7 +217,7 @@ def model_server():
                 payload = json.loads(self.rfile.read(size))
                 state.completion_entered.set()
                 assert state.completion_release.wait(15), "completion barrier timeout"
-                self.send(200, state.response(payload, dict(self.headers)))
+                self.send(200, state.response(payload, self.headers.items()))
             except Exception as error:
                 state.errors.append(str(error))
                 self.send(500, {"error": "fixture assertion failed"})

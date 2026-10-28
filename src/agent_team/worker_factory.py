@@ -1,7 +1,8 @@
 """Dynamic worker factory for creating role-specific agents."""
 
-from typing import Any
+from pydantic_ai.models import Model
 from .contracts import SpecialistRole
+from .models.http_model import SimpleChatModel
 from .simple_agent import SimpleAgent
 from .worker_tools import ToolAwareWorkerAgent, WorkerToolExecutor
 from dataclasses import dataclass
@@ -185,12 +186,20 @@ PROFESSIONAL_ROLES: dict[str, AgentRole] = {
 
 def create_worker_agent(
     role: AgentRole,
-    model: Any,
+    model: Model | SimpleChatModel,
     task_description: str,
     additional_context: str | None = None,
     tool_executor: WorkerToolExecutor | None = None,
 ) -> SimpleAgent | ToolAwareWorkerAgent:
-    """Create a worker agent with role-specific instructions."""
+    """Create a worker agent with role-specific instructions.
+
+    With ``tool_executor`` the result is a ``ToolAwareWorkerAgent`` and
+    ``model`` must be a Pydantic AI ``Model``; anything else, including a
+    model name string, raises ``TypeError``. Without it the result is a
+    ``SimpleAgent`` over a text-protocol model such as ``SimpleChatModel``.
+    That path cannot drive the engine's worker model, which the engine always
+    pairs with a tool executor.
+    """
 
     # Build responsibilities list
     resp_lines = [f"- {r}" for r in role.responsibilities]

@@ -5,14 +5,11 @@ from __future__ import annotations
 import asyncio
 import sys
 
+from pydantic_ai.models.function import FunctionModel
+
 from agent_team.config import ToolsConfig
 from agent_team.worker_factory import PROFESSIONAL_ROLES, create_worker_agent
 from agent_team.worker_tools import HERMES_NATIVE_CAPABILITIES, WorkerToolExecutor
-
-
-class Model:
-    async def run(self, messages):
-        return "{}"
 
 
 def test_hermes_native_capabilities_are_disabled_and_not_exposed(tmp_path, offered_tool_names):
@@ -36,7 +33,7 @@ def test_worker_system_prompt_does_not_claim_hermes_tools(tmp_path):
     executor = WorkerToolExecutor(tmp_path)
     agent = create_worker_agent(
         PROFESSIONAL_ROLES["software-engineer"],
-        Model(),
+        FunctionModel(lambda messages, info: None),
         "Implement the bounded assignment",
         tool_executor=executor,
     )

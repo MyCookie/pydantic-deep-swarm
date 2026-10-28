@@ -36,6 +36,7 @@ from agent_team.contracts import (
 )
 from agent_team.engine import AgentTeamEngine
 from agent_team.runtime.cancellation import ProjectTimeoutError, WorkerTurnBudget
+from agent_team.worker_factory import PROFESSIONAL_ROLES, create_worker_agent
 from agent_team.worker_tools import ToolAwareWorkerAgent, WorkerToolExecutor
 
 
@@ -286,6 +287,30 @@ async def test_w7_without_response_format_returns_plain_text(tmp_path):
 
     assert result == "plain answer"
     assert script.calls == 2
+
+
+class TextProtocolModel:
+    """The principal/manager model shape, which cannot drive a tool-calling worker."""
+
+    async def run(self, messages):
+        return "{}"
+
+
+@pytest.mark.parametrize(
+    "model",
+    # A provider-prefixed name would make Pydantic AI build a provider from OPENAI_* variables.
+    ["openai:gpt-4o", "worker-model", TextProtocolModel()],
+    ids=["provider-string", "bare-name", "text-protocol-model"],
+)
+@pytest.mark.parametrize("build", ["agent", "factory"])
+def test_w8_tool_aware_worker_rejects_a_model_that_is_not_a_pydantic_ai_model(tmp_path, model, build):
+    executor = WorkerToolExecutor(tmp_path)
+
+    with pytest.raises(TypeError, match="Pydantic AI Model"):
+        if build == "agent":
+            ToolAwareWorkerAgent(model, "worker", executor)
+        else:
+            create_worker_agent(PROFESSIONAL_ROLES["software-engineer"], model, "task", tool_executor=executor)
 
 
 # --- Seam E: the engine against a strict fake OpenAI-compatible server ------
@@ -743,6 +768,33 @@ async def test_e2_bearer_auth_reaches_the_configured_origin_however_its_default_
     assert result.report.acceptance_results[0].status == "passed"
 
 
+@pytest.mark.asyncio
+async def test_e2_trailing_slash_base_url_reaches_chat_completions_with_bearer_auth(tmp_path):
+    from agent_team.models.worker_model import create_worker_model
+
+    with FakeOpenAIServer(lambda payload: native_call("call_final", "final_result", COMPLETE_OUTPUT)) as server:
+        model = create_worker_model(f"{server.base_url}/", "worker-model", "worker-secret")
+        result = await ToolAwareWorkerAgent(model, "worker", WorkerToolExecutor(tmp_path)).run(
+            "finish", response_format=WorkerOutput
+        )
+
+    assert server.errors == []  # the server rejects any path but /v1/chat/completions
+    assert len(server.requests) == 1
+    assert server.requests[0]["headers"]["Authorization"] == "Bearer worker-secret"
+    assert result.status == "complete"
+
+
+@pytest.mark.asyncio
+async def test_e_engine_close_closes_the_worker_model_http_client(tmp_path):
+    engine = delegated_engine(tmp_path, "http://127.0.0.1:9/v1", ["read_file"])
+    worker_client = engine.worker_model.client
+    assert not worker_client.is_closed()
+
+    await engine.close()
+
+    assert worker_client.is_closed()
+
+
 # Process creation during a worker run. Audit hooks cannot be removed, so the
 # hook is installed once and records only while a test opens its window.
 _SPAWN_EVENTS = ("subprocess.Popen", "os.exec", "os.posix_spawn", "os.spawn", "os.system", "os.fork")
@@ -772,14 +824,18 @@ async def test_e_worker_request_starts_no_child_process(tmp_path, monkeypatch, h
         monkeypatch.setattr(os, "uname", lambda: darwin)
 
     with FakeOpenAIServer(lambda payload: native_call("call_final", "final_result", COMPLETE_OUTPUT)) as server:
-        engine = delegated_engine(tmp_path, server.base_url, ["read_file"])
+        # Open the window before the engine builds the worker client, so a
+        # probe moved into its constructor is caught too.
         _spawn_window["events"] = []
         _spawn_window["open"] = True
         try:
-            result = await engine.run_delegated_brief(DELEGATED_BRIEF, session_id="no-spawn")
+            engine = delegated_engine(tmp_path, server.base_url, ["read_file"])
+            try:
+                result = await engine.run_delegated_brief(DELEGATED_BRIEF, session_id="no-spawn")
+            finally:
+                await engine.close()
         finally:
             _spawn_window["open"] = False
-            await engine.close()
 
     assert server.errors == []
     assert len(server.requests) == 1

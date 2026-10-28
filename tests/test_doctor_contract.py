@@ -404,6 +404,17 @@ def test_dependency_absence_and_revision_mismatch(fixture,monkeypatch):
     assert {"dependency_missing","revision_mismatch"}<={c["reason"] for c in report["checks"]}
 
 
+def test_dependency_evidence_reports_openai_version(fixture):
+    import tomllib
+    path,_=fixture
+    root=Path(__file__).resolve().parents[1]
+    locked=next(p["version"] for p in tomllib.loads((root/"uv.lock").read_text())["package"] if p["name"]=="openai")
+    report=diagnose(config_file=path,repo_root=root)
+    check=next(c for c in report["checks"] if c["id"]=="dependencies")
+    assert check["status"]=="passed"
+    assert check["evidence"]["versions"]["openai"]==locked
+
+
 def test_unwritable_path_has_no_write_probe(fixture):
     path,_=fixture
     state=path.parent/"state"; state.mkdir(); state.chmod(0o500)

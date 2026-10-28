@@ -234,11 +234,14 @@ class AgentTeamEngine:
         from .models.worker_model import create_worker_model
 
         model_name = self._resolve_model_name(model_config)
-        return create_worker_model(
+        model = create_worker_model(
             base_url=model_config.base_url,
             model_name=model_name,
             api_key=os.getenv("LLM_API_KEY", ""),
         )
+        # Kept separately so close() reaches this client even if worker_model is replaced.
+        self._worker_client = model.client
+        return model
 
     async def run(self, user_input: str, session_id: str | None = None) -> CompletionReport:
         """Compatibility API returning only a typed report."""
@@ -445,6 +448,11 @@ class AgentTeamEngine:
             try:
                 if hasattr(self, "registry"):
                     await self.registry.cleanup()
+            except Exception as exc:
+                cleanup_errors.append(type(exc).__name__)
+            try:
+                if hasattr(self, "_worker_client"):
+                    await self._worker_client.close()
             except Exception as exc:
                 cleanup_errors.append(type(exc).__name__)
             self._active_projects.clear()

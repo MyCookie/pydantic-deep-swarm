@@ -63,6 +63,51 @@ pnpm-debug.log*
 *.token
 *.tokens
 
+# Vendor-specific agent overlays and automation, including nested workspaces.
+# Shared AGENTS.md, CONTEXT.md, .agents/, and first-party Pi assets stay trackable.
+.claude/
+.claude.json
+CLAUDE.md
+CLAUDE.local.md
+.codex/
+.cursor/
+.cursorrules
+.cursorignore
+.cursorindexingignore
+.grok/
+GROK.md
+.gemini/
+GEMINI.md
+.windsurf/
+.windsurfrules
+.devin/
+.aider.conf.yml
+.aider.conf.yaml
+.aider.chat.history.md
+.aider.input.history
+.aider.tags.cache.v*/
+.aiderignore
+**/.github/copilot-instructions.md
+**/.github/instructions/**/*.instructions.md
+**/.github/agents/*.agent.md
+**/.github/prompts/*.prompt.md
+**/.github/workflows/claude*.yml
+**/.github/workflows/claude*.yaml
+**/.github/workflows/codex*.yml
+**/.github/workflows/codex*.yaml
+**/.github/workflows/cursor*.yml
+**/.github/workflows/cursor*.yaml
+**/.github/workflows/grok*.yml
+**/.github/workflows/grok*.yaml
+**/.github/workflows/gemini*.yml
+**/.github/workflows/gemini*.yaml
+**/.github/workflows/windsurf*.yml
+**/.github/workflows/windsurf*.yaml
+**/.github/workflows/aider*.yml
+**/.github/workflows/aider*.yaml
+**/.github/workflows/copilot*.yml
+**/.github/workflows/copilot*.yaml
+
 # Credentials and private key material
 secrets/
 credentials/
